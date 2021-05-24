@@ -58,7 +58,12 @@ async fn main() -> Result<(), sqlx::Error> {
         })
         .fetch(&conn);
     while let Some(row) = rows.try_next().await? {
-        println!("{:#?}", row)
+        println!("{:#?}", row);
+    }
+
+    let mut rows = sqlx::query_as::<_, Accounts>(r#"SELECT * FROM accounts"#).fetch(&conn);
+    while let Some(row) = rows.try_next().await? {
+        println!("{:#?}", row);
     }
 
     Ok(())
