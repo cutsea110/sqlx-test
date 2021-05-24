@@ -1,4 +1,6 @@
+use futures::TryStreamExt; // try_next()
 use sqlx::postgres::PgPoolOptions;
+use sqlx::prelude::*;
 
 #[async_std::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -13,14 +15,20 @@ async fn main() -> Result<(), sqlx::Error> {
         .await?;
 
     println!("SELECT: {}", row.0);
-    assert_eq!(row.0, 150);
 
     let mut tx = conn.begin().await?;
     let c = sqlx::query("DELETE FROM commenttree")
         .execute(&mut tx)
         .await?;
-    println!("{:#?}", c.rows_affected());
+    println!("DELETE: {:?}", c.rows_affected());
+
     tx.rollback().await?;
+
+    let mut rows = sqlx::query("SELECT account_name FROM accounts").fetch(&conn);
+    while let Some(row) = rows.try_next().await? {
+        let name: &str = row.try_get("account_name")?;
+        println!("{:?}", name);
+    }
 
     Ok(())
 }
