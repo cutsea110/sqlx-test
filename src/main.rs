@@ -2,6 +2,9 @@ use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::prelude::*;
 
+//
+// https://docs.rs/sqlx/0.4.0-beta.1/sqlx/postgres/types/index.html
+//
 #[derive(Debug, sqlx::FromRow)]
 struct Accounts {
     account_id: i32,
@@ -42,30 +45,18 @@ async fn main() -> Result<(), sqlx::Error> {
         println!("{:?}", name);
     }
 
-    let mut rows = sqlx::query(
-        r#"
-SELECT account_id
-     , account_name
-     , first_name
-     , last_name
-     , email
-     , password_hash
-     , portrait_image
-     , hourly_rate
-  FROM accounts
-"#,
-    )
-    .map(|row: PgRow| Accounts {
-        account_id: row.get(0),
-        account_name: row.get(1),
-        first_name: row.get(2),
-        last_name: row.get(3),
-        email: row.get(4),
-        password_hash: row.get(5),
-        portrait_image: row.get(6),
-        hourly_rate: row.get(7),
-    })
-    .fetch(&conn);
+    let mut rows = sqlx::query(r#"SELECT * FROM accounts"#)
+        .map(|row: PgRow| Accounts {
+            account_id: row.get(0),
+            account_name: row.get(1),
+            first_name: row.get(2),
+            last_name: row.get(3),
+            email: row.get(4),
+            password_hash: row.get(5),
+            portrait_image: row.get(6),
+            hourly_rate: row.get(7),
+        })
+        .fetch(&conn);
     while let Some(row) = rows.try_next().await? {
         println!("{:#?}", row)
     }
