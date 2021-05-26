@@ -1,5 +1,5 @@
 use futures::TryStreamExt; // try_next()
-use sqlx::postgres::{PgPoolOptions, PgRow};
+use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::prelude::*;
 
 //
@@ -17,34 +17,45 @@ struct Accounts {
     hourly_rate: Option<f32>,
 }
 
-#[async_std::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     let conn = PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgres://admin:admin@localhost:15432/sampledb")
+        .connect(conn_str)
         .await?;
+
+    Ok(conn)
+}
+
+async fn select_const(conn: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
+    let tx = conn.begin().await?;
 
     let row: (i64,) = sqlx::query_as("SELECT $1")
         .bind(150_i64)
-        .fetch_one(&conn)
+        .fetch_one(conn)
         .await?;
-
-    println!("SELECT: {}", row.0);
-
-    let mut tx = conn.begin().await?;
-    let c = sqlx::query("DELETE FROM commenttree")
-        .execute(&mut tx)
-        .await?;
-    println!("DELETE: {:?}", c.rows_affected());
 
     tx.rollback().await?;
 
-    let mut rows = sqlx::query("SELECT account_name FROM accounts").fetch(&conn);
-    while let Some(row) = rows.try_next().await? {
-        let name: &str = row.try_get("account_name")?;
-        println!("{:?}", name);
+    Ok(row.0)
+}
+
+async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64, sqlx::Error> {
+    let c = sqlx::query("DELETE FROM commenttree").execute(conn).await?;
+    Ok(c.rows_affected())
+}
+
+async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<String>>, sqlx::Error> {
+    let rows = select_all_acounts_1(conn).await?;
+    let mut v = vec![];
+
+    for x in rows {
+        v.push(x.account_name);
     }
 
+    Ok(v)
+}
+
+async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
     let mut rows = sqlx::query(r#"SELECT * FROM accounts"#)
         .map(|row: PgRow| Accounts {
             account_id: row.get(0),
@@ -56,13 +67,51 @@ async fn main() -> Result<(), sqlx::Error> {
             portrait_image: row.get(6),
             hourly_rate: row.get(7),
         })
-        .fetch(&conn);
+        .fetch(conn);
+    let mut v = vec![];
+
     while let Some(row) = rows.try_next().await? {
+        v.push(row)
+    }
+
+    Ok(v)
+}
+
+async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
+    let mut rows = sqlx::query_as::<_, Accounts>(r#"SELECT * FROM accounts"#).fetch(conn);
+    let mut v = vec![];
+
+    while let Some(row) = rows.try_next().await? {
+        v.push(row);
+    }
+
+    Ok(v)
+}
+
+#[async_std::main]
+async fn main() -> Result<(), sqlx::Error> {
+    let conn = new_conn("postgres://admin:admin@localhost:15432/sampledb").await?;
+
+    let n = select_const(&conn).await?;
+
+    println!("SELECT: {}", n);
+
+    let c = delete_all_commenttree(&conn).await?;
+
+    println!("DELETE: {:?}", c);
+
+    let rows = select_all_accounts_name(&conn).await?;
+    for name in rows {
+        println!("{:?}", name);
+    }
+
+    let rows = select_all_acounts_1(&conn).await?;
+    for row in rows {
         println!("{:#?}", row);
     }
 
-    let mut rows = sqlx::query_as::<_, Accounts>(r#"SELECT * FROM accounts"#).fetch(&conn);
-    while let Some(row) = rows.try_next().await? {
+    let rows = select_all_accounts_2(&conn).await?;
+    for row in rows {
         println!("{:#?}", row);
     }
 
