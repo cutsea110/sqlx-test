@@ -1,3 +1,4 @@
+use anyhow::Result;
 use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::prelude::*;
@@ -17,7 +18,7 @@ struct Accounts {
     hourly_rate: Option<f32>,
 }
 
-async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
+async fn new_conn(conn_str: &str) -> Result<PgPool> {
     let conn = PgPoolOptions::new()
         .max_connections(5)
         .connect(conn_str)
@@ -26,7 +27,7 @@ async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     Ok(conn)
 }
 
-async fn select_const(conn: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
+async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
     let tx = conn.begin().await?;
 
     let row: (i64,) = sqlx::query_as("SELECT $1")
@@ -39,12 +40,12 @@ async fn select_const(conn: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
     Ok(row.0)
 }
 
-async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64, sqlx::Error> {
+async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64> {
     let c = sqlx::query("DELETE FROM commenttree").execute(conn).await?;
     Ok(c.rows_affected())
 }
 
-async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<String>>, sqlx::Error> {
+async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<String>>> {
     let rows = select_all_acounts_1(conn).await?;
     let mut v = vec![];
 
@@ -55,7 +56,7 @@ async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<Stri
     Ok(v)
 }
 
-async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
+async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
     let mut rows = sqlx::query(r#"SELECT * FROM accounts"#)
         .map(|row: PgRow| Accounts {
             account_id: row.get(0),
@@ -77,7 +78,7 @@ async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx
     Ok(v)
 }
 
-async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
+async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
     let mut rows = sqlx::query_as::<_, Accounts>(r#"SELECT * FROM accounts"#).fetch(conn);
     let mut v = vec![];
 
@@ -89,7 +90,7 @@ async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sql
 }
 
 #[async_std::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<()> {
     let conn = new_conn("postgres://admin:admin@localhost:15432/sampledb").await?;
 
     let n = select_const(&conn).await?;
