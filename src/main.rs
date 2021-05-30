@@ -116,5 +116,17 @@ async fn main() -> Result<()> {
         println!("{:#?}", row);
     }
 
+    let select_task = async_std::task::spawn(async move {
+        let result = select_all_accounts_2(&conn).await;
+        match result {
+            Ok(s) => {
+                println!("ASYNC!");
+                println!("{:#?}", s);
+            }
+            Err(e) => println!("Error select: {:?}", e),
+        }
+    });
+    async_std::task::block_on(select_task);
+
     Ok(())
 }
