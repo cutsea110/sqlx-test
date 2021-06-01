@@ -27,6 +27,33 @@ async fn new_conn(conn_str: &str) -> Result<PgPool> {
     Ok(conn)
 }
 
+async fn insert_account(conn: &sqlx::PgPool) -> Result<i32> {
+    let mut tx = conn.begin().await?;
+
+    let row: (i32,) = sqlx::query_as(
+        r#"
+INSERT INTO accounts
+  ( account_name, first_name, last_name, email, password_hash, portrait_image, hourly_rate)
+   VALUES
+  ( $1, $2, $3, $4, $5, $6, $7)
+  RETURNING account_id
+"#,
+    )
+    .bind(Some(String::from("Katsutoshi Itoh")))
+    .bind(Some(String::from("Itoh")))
+    .bind(Some(String::from("Katsutoshi")))
+    .bind(Some(String::from("cutsea110@gmail.com")))
+    .bind(None as Option<String>)
+    .bind(None as Option<Vec<u8>>)
+    .bind(None as Option<f32>)
+    .fetch_one(&mut tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(row.0)
+}
+
 async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
     let tx = conn.begin().await?;
 
@@ -41,7 +68,14 @@ async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
 }
 
 async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64> {
-    let c = sqlx::query("DELETE FROM commenttree").execute(conn).await?;
+    let mut tx = conn.begin().await?;
+
+    let c = sqlx::query("DELETE FROM commenttree")
+        .execute(&mut tx)
+        .await?;
+
+    tx.commit().await?;
+
     Ok(c.rows_affected())
 }
 
@@ -100,6 +134,9 @@ async fn main() -> Result<()> {
     let c = delete_all_commenttree(&conn).await?;
 
     println!("DELETE: {:?}", c);
+
+    let row = insert_account(&conn).await?;
+    println!("INSERTED: {}", row);
 
     let rows = select_all_accounts_name(&conn).await?;
     for name in rows {
