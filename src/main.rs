@@ -54,6 +54,63 @@ INSERT INTO accounts
     Ok(row.0)
 }
 
+async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>> {
+    let mut tx = conn.begin().await?;
+
+    let acc = sqlx::query_as::<_, Accounts>(
+        r#"
+SELECT account_id
+     , account_name
+     , first_name
+     , last_name
+     , email
+     , password_hash
+     , portrait_image
+     , hourly_rate
+  FROM accounts
+"#,
+    )
+    .bind(id)
+    .fetch_one(&mut tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Some(acc))
+}
+
+async fn update_account(conn: &sqlx::PgPool, acc: Accounts) -> Result<u64> {
+    let mut tx = conn.begin().await?;
+
+    let c = sqlx::query(
+        r#"
+UPDATE accounts
+   SET account_name   = $2
+     , first_name     = $3
+     , last_name      = $4
+     , email          = $5
+--     . password_hash  = $6
+     , portrait_image = $7
+     , hourly_rate    = $8
+ WHERE account_id = $1
+"#,
+    )
+    .bind(acc.account_id)
+    .bind(acc.account_name)
+    .bind(acc.first_name)
+    .bind(acc.last_name)
+    .bind(acc.email)
+    .bind(Some(String::from("ok")))
+    .bind(acc.portrait_image)
+    .bind(acc.hourly_rate)
+    .execute(&mut tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(c.rows_affected())
+}
+
 async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
     let tx = conn.begin().await?;
 
@@ -137,6 +194,17 @@ async fn main() -> Result<()> {
 
     let row = insert_account(&conn).await?;
     println!("INSERTED: {}", row);
+
+    match get_account(&conn, row).await? {
+        Some(acc) => {
+            println!("GET: {:#?}", acc);
+            let c = update_account(&conn, acc).await?;
+            println!("UPDATED: {}", c);
+        }
+        None => {
+            println!("Not found: {}", row);
+        }
+    }
 
     let rows = select_all_accounts_name(&conn).await?;
     for name in rows {
