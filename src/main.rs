@@ -3,9 +3,6 @@ use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::prelude::*;
 
-mod transaction;
-use transaction::*;
-
 //
 // https://docs.rs/sqlx/0.4.0-beta.1/sqlx/postgres/types/index.html
 //
@@ -28,6 +25,30 @@ async fn new_conn(conn_str: &str) -> Result<PgPool> {
         .await?;
 
     Ok(conn)
+}
+
+async fn get_account_with_tx(
+    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    id: i32,
+) -> Result<Option<Accounts>> {
+    let acc = sqlx::query_as::<_, Accounts>(
+        r#"
+SELECT account_id
+     , account_name
+     , first_name
+     , last_name
+     , email
+     , password_hash
+     , portrait_image
+     , hourly_rate
+  FROM accounts
+"#,
+    )
+    .bind(id)
+    .fetch_one(tx)
+    .await?;
+
+    Ok(Some(acc))
 }
 
 async fn insert_account(conn: &sqlx::PgPool) -> Result<i32> {
@@ -60,26 +81,11 @@ INSERT INTO accounts
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>> {
     let mut tx = conn.begin().await?;
 
-    let acc = sqlx::query_as::<_, Accounts>(
-        r#"
-SELECT account_id
-     , account_name
-     , first_name
-     , last_name
-     , email
-     , password_hash
-     , portrait_image
-     , hourly_rate
-  FROM accounts
-"#,
-    )
-    .bind(id)
-    .fetch_one(&mut tx)
-    .await?;
+    let acc = get_account_with_tx(&mut tx, id).await?;
 
     tx.commit().await?;
 
-    Ok(Some(acc))
+    Ok(acc)
 }
 
 async fn update_account(conn: &sqlx::PgPool, acc: Accounts) -> Result<u64> {
