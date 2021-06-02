@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::prelude::*;
+use std::marker::PhantomData;
 
 //
 // https://docs.rs/sqlx/0.4.0-beta.1/sqlx/postgres/types/index.html
@@ -25,6 +26,39 @@ async fn new_conn(conn_str: &str) -> Result<PgPool> {
         .await?;
 
     Ok(conn)
+}
+
+struct WithCtx<Ctx, F> {
+    f: F,
+    _phantom: PhantomData<Ctx>,
+}
+fn with_ctx<Ctx, F, T, E>(f: F) -> WithCtx<Ctx, F>
+where
+    F: Fn(&Ctx) -> core::result::Result<T, E>,
+{
+    WithCtx {
+        f,
+        _phantom: PhantomData,
+    }
+}
+impl<Ctx, T, E, F> Transaction for WithCtx<Ctx, F>
+where
+    F: Fn(&Ctx) -> Result<T, E>,
+{
+    type Ctx = Ctx;
+    type Item = T;
+    type Err = E;
+
+    fn run(&self, ctx: &Self::Ctx) -> core::result::Result<Self::Item, Self::Err> {
+        (self.f)(ctx)
+    }
+}
+
+trait Transaction {
+    type Ctx;
+    type Item;
+    type Err;
+    fn run(&self, ctx: &Self::Ctx) -> core::result::Result<Self::Item, Self::Err>;
 }
 
 async fn insert_account(conn: &sqlx::PgPool) -> Result<i32> {
