@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures::Future;
 use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::prelude::*;
@@ -76,6 +77,22 @@ INSERT INTO accounts
     tx.commit().await?;
 
     Ok(row.0)
+}
+
+async fn with_transaction<Fut, T>(
+    conn: &sqlx::PgPool,
+    f: impl FnOnce(&mut sqlx::Transaction<'static, sqlx::Postgres>) -> Fut,
+) -> Result<T>
+where
+    Fut: Future<Output = Result<T>>,
+{
+    let mut tx = conn.begin().await?;
+
+    let val = f(&mut tx).await?;
+
+    tx.commit().await?;
+
+    Ok(val)
 }
 
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>> {
