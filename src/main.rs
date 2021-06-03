@@ -20,16 +20,22 @@ struct Accounts {
 
 async fn with_transaction<'a, Fut, T>(
     conn: &sqlx::PgPool,
-    f: impl FnOnce(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
+    f: impl Fn(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
 ) -> Result<T, sqlx::Error>
 where
     Fut: Future<Output = Result<T, sqlx::Error>>,
 {
     let mut tx = conn.begin().await?;
-    let val = f(&mut tx).await?;
-    tx.commit().await?;
-
-    Ok(val)
+    match f(&mut tx).await {
+        Ok(v) => {
+            tx.commit().await?;
+            Ok(v)
+        }
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
+    }
 }
 
 async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
@@ -41,8 +47,8 @@ async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     Ok(conn)
 }
 
-async fn get_account_with_tx(
-    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+async fn get_account_with_tx<'a>(
+    tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
     id: i32,
 ) -> Result<Option<Accounts>, sqlx::Error> {
     let acc = sqlx::query_as::<_, Accounts>(
@@ -63,6 +69,16 @@ SELECT account_id
     .await?;
 
     Ok(Some(acc))
+}
+
+async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
+    let mut tx = conn.begin().await?;
+
+    let acc = get_account_with_tx(&mut tx, id).await?;
+
+    tx.commit().await?;
+
+    Ok(acc)
 }
 
 async fn insert_account(conn: &sqlx::PgPool) -> Result<i32, sqlx::Error> {
@@ -90,16 +106,6 @@ INSERT INTO accounts
     tx.commit().await?;
 
     Ok(row.0)
-}
-
-async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
-    let mut tx = conn.begin().await?;
-
-    let acc = get_account_with_tx(&mut tx, id).await?;
-
-    tx.commit().await?;
-
-    Ok(acc)
 }
 
 async fn update_account(conn: &sqlx::PgPool, acc: Accounts) -> Result<u64, sqlx::Error> {
@@ -257,4 +263,20 @@ async fn main() -> Result<(), sqlx::Error> {
     async_std::task::block_on(select_task);
 
     Ok(())
+}
+
+// fn func_name() -> impl futures::Future<Output = String>
+async fn func_name() -> String {
+    "hello".to_string()
+}
+async fn execute_func<F, Fut, T>(f: F) -> T
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = T>,
+{
+    f().await
+}
+
+async fn test() -> String {
+    execute_func(func_name).await
 }
