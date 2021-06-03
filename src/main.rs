@@ -18,6 +18,20 @@ struct Accounts {
     hourly_rate: Option<f32>,
 }
 
+async fn with_transaction<'a, Fut, T>(
+    conn: &sqlx::PgPool,
+    f: impl FnOnce(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
+) -> Result<T, sqlx::Error>
+where
+    Fut: Future<Output = Result<T, sqlx::Error>>,
+{
+    let mut tx = conn.begin().await?;
+    let val = f(&mut tx).await?;
+    tx.commit().await?;
+
+    Ok(val)
+}
+
 async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     let conn = PgPoolOptions::new()
         .max_connections(5)
@@ -76,20 +90,6 @@ INSERT INTO accounts
     tx.commit().await?;
 
     Ok(row.0)
-}
-
-async fn with_transaction<'a, Fut, T>(
-    conn: &sqlx::PgPool,
-    f: impl FnOnce(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
-) -> Result<T, sqlx::Error>
-where
-    Fut: Future<Output = Result<T, sqlx::Error>>,
-{
-    let mut tx = conn.begin().await?;
-    let val = f(&mut tx).await?;
-    tx.commit().await?;
-
-    Ok(val)
 }
 
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
