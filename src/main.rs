@@ -1,4 +1,3 @@
-use anyhow::Result;
 use futures::Future;
 use futures::TryStreamExt; // try_next()
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
@@ -19,7 +18,7 @@ struct Accounts {
     hourly_rate: Option<f32>,
 }
 
-async fn new_conn(conn_str: &str) -> Result<PgPool> {
+async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     let conn = PgPoolOptions::new()
         .max_connections(5)
         .connect(conn_str)
@@ -31,7 +30,7 @@ async fn new_conn(conn_str: &str) -> Result<PgPool> {
 async fn get_account_with_tx(
     tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
     id: i32,
-) -> Result<Option<Accounts>> {
+) -> Result<Option<Accounts>, sqlx::Error> {
     let acc = sqlx::query_as::<_, Accounts>(
         r#"
 SELECT account_id
@@ -52,7 +51,7 @@ SELECT account_id
     Ok(Some(acc))
 }
 
-async fn insert_account(conn: &sqlx::PgPool) -> Result<i32> {
+async fn insert_account(conn: &sqlx::PgPool) -> Result<i32, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
     let row: (i32,) = sqlx::query_as(
@@ -82,9 +81,9 @@ INSERT INTO accounts
 async fn with_transaction<'a, Fut, T>(
     conn: &sqlx::PgPool,
     f: impl FnOnce(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
-) -> Result<T>
+) -> Result<T, sqlx::Error>
 where
-    Fut: Future<Output = Result<T>>,
+    Fut: Future<Output = Result<T, sqlx::Error>>,
 {
     let mut tx = conn.begin().await?;
     let val = f(&mut tx).await?;
@@ -93,7 +92,7 @@ where
     Ok(val)
 }
 
-async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>> {
+async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
     let acc = get_account_with_tx(&mut tx, id).await?;
@@ -103,7 +102,7 @@ async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>> {
     Ok(acc)
 }
 
-async fn update_account(conn: &sqlx::PgPool, acc: Accounts) -> Result<u64> {
+async fn update_account(conn: &sqlx::PgPool, acc: Accounts) -> Result<u64, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
     let c = sqlx::query(
@@ -135,7 +134,7 @@ UPDATE accounts
     Ok(c.rows_affected())
 }
 
-async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
+async fn select_const(conn: &sqlx::PgPool) -> Result<i64, sqlx::Error> {
     let tx = conn.begin().await?;
 
     let row: (i64,) = sqlx::query_as("SELECT $1")
@@ -148,7 +147,7 @@ async fn select_const(conn: &sqlx::PgPool) -> Result<i64> {
     Ok(row.0)
 }
 
-async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64> {
+async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
     let c = sqlx::query("DELETE FROM commenttree")
@@ -160,7 +159,7 @@ async fn delete_all_commenttree(conn: &sqlx::PgPool) -> Result<u64> {
     Ok(c.rows_affected())
 }
 
-async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<String>>> {
+async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<String>>, sqlx::Error> {
     let rows = select_all_acounts_1(conn).await?;
     let mut v = vec![];
 
@@ -171,7 +170,7 @@ async fn select_all_accounts_name(conn: &sqlx::PgPool) -> Result<Vec<Option<Stri
     Ok(v)
 }
 
-async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
+async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
     let mut rows = sqlx::query(r#"SELECT * FROM accounts"#)
         .map(|row: PgRow| Accounts {
             account_id: row.get(0),
@@ -193,7 +192,7 @@ async fn select_all_acounts_1(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
     Ok(v)
 }
 
-async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
+async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>, sqlx::Error> {
     let mut rows = sqlx::query_as::<_, Accounts>(r#"SELECT * FROM accounts"#).fetch(conn);
     let mut v = vec![];
 
@@ -205,7 +204,7 @@ async fn select_all_accounts_2(conn: &sqlx::PgPool) -> Result<Vec<Accounts>> {
 }
 
 #[async_std::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), sqlx::Error> {
     let conn = new_conn("postgres://admin:admin@localhost:15432/sampledb").await?;
 
     let n = select_const(&conn).await?;
