@@ -74,11 +74,16 @@ SELECT account_id
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
-    let acc = get_account_with_tx(&mut tx, id).await?;
-
-    tx.commit().await?;
-
-    Ok(acc)
+    match get_account_with_tx(&mut tx, id).await {
+        Ok(acc) => {
+            tx.commit().await?;
+            Ok(acc)
+        }
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
+    }
 }
 
 async fn insert_account(conn: &sqlx::PgPool) -> Result<i32, sqlx::Error> {
