@@ -74,7 +74,9 @@ SELECT account_id
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
-    match get_account_with_tx(&mut tx, id).await {
+    let future_func = |tx| get_account_with_tx(tx, id);
+
+    match ((future_func)(&mut tx)).await {
         Ok(acc) => {
             tx.commit().await?;
             Ok(acc)
