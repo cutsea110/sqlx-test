@@ -18,9 +18,9 @@ struct Accounts {
     hourly_rate: Option<f32>,
 }
 
-async fn with_transaction<'a, Fut, T>(
+async fn with_transaction<Fut, T>(
     conn: &sqlx::PgPool,
-    f: impl Fn(&mut sqlx::Transaction<'a, sqlx::Postgres>) -> Fut,
+    f: impl Fn(&mut sqlx::Transaction<'_, sqlx::Postgres>) -> Fut,
 ) -> Result<T, sqlx::Error>
 where
     Fut: Future<Output = Result<T, sqlx::Error>>,
@@ -47,8 +47,8 @@ async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     Ok(conn)
 }
 
-async fn get_account_with_tx<'a>(
-    tx: &mut sqlx::Transaction<'a, sqlx::Postgres>,
+async fn get_account_with_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     id: i32,
 ) -> Result<Option<Accounts>, sqlx::Error> {
     let acc = sqlx::query_as::<_, Accounts>(
