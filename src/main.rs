@@ -71,19 +71,10 @@ SELECT account_id
     Ok(Some(acc))
 }
 
-async fn get_account<F>(
-    conn: &sqlx::PgPool,
-    future_func: F,
-    id: i32,
-) -> Result<Option<Accounts>, sqlx::Error>
-where
-    F: Fn(
-        &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    ) -> dyn Future<Output = Result<Option<Accounts>, sqlx::Error>>,
-{
+async fn get_account<F>(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
-    // let future_func = |tx| get_account_with_tx(tx, id);
+    let future_func = |tx| get_account_with_tx(tx, id);
 
     match ((future_func)(&mut tx)).await {
         Ok(acc) => {
