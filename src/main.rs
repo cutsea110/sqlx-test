@@ -71,7 +71,7 @@ SELECT account_id
     Ok(Some(acc))
 }
 
-async fn get_account<F>(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
+async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
     let future_func = |tx| get_account_with_tx(tx, id);
@@ -230,18 +230,18 @@ async fn main() -> Result<(), sqlx::Error> {
 
     let row = insert_account(&conn).await?;
     println!("INSERTED: {}", row);
-    /*
-        match get_account(&conn, row).await? {
-            Some(acc) => {
-                println!("GET: {:#?}", acc);
-                let c = update_account(&conn, acc).await?;
-                println!("UPDATED: {}", c);
-            }
-            None => {
-                println!("Not found: {}", row);
-            }
+
+    match get_account(&conn, row).await? {
+        Some(acc) => {
+            println!("GET: {:#?}", acc);
+            let c = update_account(&conn, acc).await?;
+            println!("UPDATED: {}", c);
         }
-    */
+        None => {
+            println!("Not found: {}", row);
+        }
+    }
+
     let rows = select_all_accounts_name(&conn).await?;
     for name in rows {
         println!("{:?}", name);
