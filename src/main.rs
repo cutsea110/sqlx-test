@@ -75,10 +75,7 @@ SELECT account_id
 // トランザクションを切る責務を負う
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
-
-    let future_func = |tx| get_account_with_tx(tx, id);
-
-    match ((future_func)(&mut tx)).await {
+    match ((|tx| get_account_with_tx(tx, id))(&mut tx)).await {
         Ok(acc) => {
             tx.commit().await?;
             Ok(acc)
