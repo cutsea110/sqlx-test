@@ -47,6 +47,7 @@ async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
     Ok(conn)
 }
 
+// トランザクションを要求する
 async fn get_account_with_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     id: i32,
@@ -71,6 +72,7 @@ SELECT account_id
     Ok(Some(acc))
 }
 
+// トランザクションを切る責務を負う
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
     let mut tx = conn.begin().await?;
 
