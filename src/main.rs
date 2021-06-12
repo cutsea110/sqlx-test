@@ -74,6 +74,7 @@ SELECT account_id
 
 // トランザクションを切る責務を負う
 async fn get_account(conn: &sqlx::PgPool, id: i32) -> Result<Option<Accounts>, sqlx::Error> {
+    // TODO: with_transaction を使って書き直す
     let mut tx = conn.begin().await?;
     match ((|tx| get_account_with_tx(tx, id))(&mut tx)).await {
         Ok(acc) => {
