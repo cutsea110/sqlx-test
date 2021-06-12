@@ -273,19 +273,3 @@ async fn main() -> Result<(), sqlx::Error> {
 
     Ok(())
 }
-
-// fn func_name() -> impl futures::Future<Output = String>
-async fn func_name() -> String {
-    "hello".to_string()
-}
-async fn execute_func<F, Fut, T>(f: F) -> T
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = T>,
-{
-    f().await
-}
-
-async fn test() -> String {
-    execute_func(func_name).await
-}
