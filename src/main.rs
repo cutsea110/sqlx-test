@@ -39,11 +39,11 @@ where
 }
 
 async fn get_todo(
-    mut executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     id: i32,
-) -> Result<Option<Todo>, sqlx::Error> {
+) -> Result<Option<Todo>, Box<dyn std::error::Error>> {
     let todo = query_as!(Todo, r#"SELECT * FROM todos WHERE id = $1"#, id)
-        .fetch_optional(executor)
+        .fetch_optional(&mut **tx)
         .await?;
 
     Ok(todo)
