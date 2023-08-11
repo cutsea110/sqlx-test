@@ -1,5 +1,53 @@
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::query;
+use sqlx::{query, query_as};
+use std::future::Future;
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+struct Todo {
+    id: i32,
+    description: String,
+    done: bool,
+}
+
+async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
+    let conn = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(conn_str)
+        .await?;
+
+    Ok(conn)
+}
+
+async fn with_tx<Fut, T>(
+    pool: &sqlx::PgPool,
+    f: impl Fn(&mut sqlx::Transaction<'_, sqlx::Postgres>) -> Fut,
+) -> Result<T, Box<dyn std::error::Error>>
+where
+    Fut: Future<Output = Result<T, Box<dyn std::error::Error>>>,
+{
+    let mut tx = pool.begin().await?;
+    match f(&mut tx).await {
+        Ok(v) => {
+            tx.commit().await?;
+            Ok(v)
+        }
+        Err(e) => {
+            tx.rollback().await?;
+            Err(e)
+        }
+    }
+}
+
+async fn get_todo(
+    mut executor: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+    id: i32,
+) -> Result<Option<Todo>, sqlx::Error> {
+    let todo = query_as!(Todo, r#"SELECT * FROM todos WHERE id = $1"#, id)
+        .fetch_optional(executor)
+        .await?;
+
+    Ok(todo)
+}
 
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -18,15 +66,6 @@ async fn insert_and_verify(
         .await?;
 
     Ok(())
-}
-
-async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
-    let conn = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(conn_str)
-        .await?;
-
-    Ok(conn)
 }
 
 async fn explicit_rollback_example(
@@ -100,6 +139,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     assert!(inserted_todo.is_ok());
+
+    // let todo = with_tx(&pool, |tx| get_todo(tx, test_id)).await?;
+
+    // println!("todo: {:?}", todo);
 
     Ok(())
 }
