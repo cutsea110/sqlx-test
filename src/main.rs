@@ -81,6 +81,8 @@ pub mod infrastructure {
         use async_trait::async_trait;
         use sqlx::{PgPool, Transaction};
 
+        type PgTransaction<'a> = Transaction<'a, sqlx::Postgres>;
+
         use crate::domain::{
             entity::user::{User, UserId},
             error::DomainError,
@@ -139,7 +141,7 @@ pub mod infrastructure {
         impl InternalUserRepository {
             pub(in crate::infrastructure) async fn create(
                 user: &User,
-                tx: &mut Transaction<'_, sqlx::Postgres>,
+                tx: &mut PgTransaction<'_>,
             ) -> Result<(), DomainError> {
                 sqlx::query("INSERT INTO bookshelf_user (id) VALUES ($1)")
                     .bind(user.id.as_str())
@@ -150,7 +152,7 @@ pub mod infrastructure {
 
             async fn find_by_id(
                 id: &UserId,
-                tx: &mut Transaction<'_, sqlx::Postgres>,
+                tx: &mut PgTransaction<'_>,
             ) -> Result<Option<User>, DomainError> {
                 let row: Option<UserRow> =
                     sqlx::query_as("SELECT * FROM bookshelf_user WHERE id = $1")
