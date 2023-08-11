@@ -1,148 +1,188 @@
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::{query, query_as};
-use std::future::Future;
+pub mod domain {
+    pub mod error {
+        use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
-struct Todo {
-    id: i32,
-    description: String,
-    done: bool,
-}
-
-async fn new_conn(conn_str: &str) -> Result<PgPool, sqlx::Error> {
-    let conn = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(conn_str)
-        .await?;
-
-    Ok(conn)
-}
-
-async fn with_tx<Fut, T>(
-    pool: &sqlx::PgPool,
-    f: impl Fn(&mut sqlx::Transaction<'_, sqlx::Postgres>) -> Fut,
-) -> Result<T, Box<dyn std::error::Error>>
-where
-    Fut: Future<Output = Result<T, Box<dyn std::error::Error>>>,
-{
-    let mut tx = pool.begin().await?;
-    match f(&mut tx).await {
-        Ok(v) => {
-            tx.commit().await?;
-            Ok(v)
+        #[derive(Debug, Clone, PartialEq, Eq, Error)]
+        pub enum DomainError {
+            #[error("unexpected error: {0}")]
+            Unexpected(String),
         }
-        Err(e) => {
-            tx.rollback().await?;
-            Err(e)
+
+        impl From<sqlx::Error> for DomainError {
+            fn from(err: sqlx::Error) -> Self {
+                Self::Unexpected(err.to_string())
+            }
+        }
+    }
+
+    pub mod entity {
+        pub mod user {
+            use crate::domain::error;
+
+            #[derive(Debug, Clone, PartialEq, Eq)]
+            pub struct UserId {
+                value: String,
+            }
+
+            impl UserId {
+                pub fn new(id: String) -> Result<Self, error::DomainError> {
+                    let user = Self { value: id };
+                    // validate
+                    if user.value.is_empty() {
+                        return Err(error::DomainError::Unexpected(
+                            "user id must not be empty".to_string(),
+                        ));
+                    }
+                    Ok(user)
+                }
+
+                pub fn as_str(&self) -> &str {
+                    &self.value
+                }
+
+                pub fn into_string(self) -> String {
+                    self.value
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq)]
+            pub struct User {
+                pub id: UserId,
+            }
+
+            impl User {
+                pub fn new(id: UserId) -> User {
+                    User { id }
+                }
+            }
+        }
+    }
+
+    pub mod repository {
+        pub mod user_repository {
+            use async_trait::async_trait;
+            use mockall::automock;
+
+            use crate::domain::{
+                entity::user::{User, UserId},
+                error::DomainError,
+            };
+
+            #[automock]
+            #[async_trait]
+            pub trait UserRepository: Send + Sync + 'static {
+                async fn create(&self, user: &User) -> Result<(), DomainError>;
+                async fn find_by_id(&self, id: &UserId) -> Result<Option<User>, DomainError>;
+            }
         }
     }
 }
 
-async fn get_todo(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    id: i32,
-) -> Result<Option<Todo>, Box<dyn std::error::Error>> {
-    let todo = query_as!(Todo, r#"SELECT * FROM todos WHERE id = $1"#, id)
-        .fetch_optional(&mut **tx)
-        .await?;
+pub mod infrastructure {
+    pub mod pg_db {
+        use async_trait::async_trait;
+        use sqlx::{PgConnection, PgPool};
 
-    Ok(todo)
-}
+        use crate::domain::{
+            entity::user::{User, UserId},
+            error::DomainError,
+            repository::user_repository::UserRepository,
+        };
 
-async fn insert_and_verify(
-    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    test_id: i32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    query!(
-        r#"INSERT INTO todos (id, description) VALUES ($1, $2)"#,
-        test_id,
-        "test todo"
-    )
-    .execute(&mut **transaction)
-    .await?;
+        #[derive(sqlx::FromRow)]
+        struct UserRow {
+            id: String,
+        }
 
-    let _ = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
-        .execute(&mut **transaction)
-        .await?;
+        #[derive(Debug, Clone)]
+        pub struct PgUserRepository {
+            pool: PgPool,
+        }
 
-    Ok(())
-}
+        impl PgUserRepository {
+            pub fn new(pool: PgPool) -> Self {
+                Self { pool }
+            }
+        }
 
-async fn explicit_rollback_example(
-    pool: &sqlx::PgPool,
-    test_id: i32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut tx = pool.begin().await?;
+        #[async_trait]
+        impl UserRepository for PgUserRepository {
+            async fn create(&self, user: &User) -> Result<(), DomainError> {
+                let mut conn = self.pool.acquire().await?;
+                let result = InternalUserRepository::create(user, &mut conn).await?;
+                Ok(result)
+            }
 
-    insert_and_verify(&mut tx, test_id).await?;
+            async fn find_by_id(&self, id: &UserId) -> Result<Option<User>, DomainError> {
+                let mut conn = self.pool.acquire().await?;
+                let user = InternalUserRepository::find_by_id(id, &mut conn).await?;
+                Ok(user)
+            }
+        }
 
-    tx.rollback().await?;
+        pub(in crate::infrastructure) struct InternalUserRepository {}
 
-    Ok(())
-}
+        impl InternalUserRepository {
+            pub(in crate::infrastructure) async fn create(
+                user: &User,
+                conn: &mut PgConnection,
+            ) -> Result<(), DomainError> {
+                sqlx::query("INSERT INTO bookshelf_user (id) VALUES ($1)")
+                    .bind(user.id.as_str())
+                    .execute(conn)
+                    .await?;
+                Ok(())
+            }
 
-async fn implicit_rollback_example(
-    pool: &sqlx::PgPool,
-    test_id: i32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut tx = pool.begin().await?;
+            async fn find_by_id(
+                id: &UserId,
+                conn: &mut PgConnection,
+            ) -> Result<Option<User>, DomainError> {
+                let row: Option<UserRow> =
+                    sqlx::query_as("SELECT * FROM bookshelf_user WHERE id = $1")
+                        .bind(id.as_str())
+                        .fetch_optional(conn)
+                        .await?;
 
-    insert_and_verify(&mut tx, test_id).await?;
+                let id = row.map(|row| UserId::new(row.id)).transpose()?;
+                Ok(id.map(|id| User::new(id)))
+            }
+        }
 
-    Ok(())
-}
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use sqlx::postgres::PgPoolOptions;
 
-async fn commit_example(
-    pool: &sqlx::PgPool,
-    test_id: i32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut tx = pool.begin().await?;
+            #[async_std::test]
+            async fn test_user_repository() -> anyhow::Result<()> {
+                let db_url = std::env::var("DATABASE_URL")
+                    .expect("Env var DATABASE_URL is required. for this test");
+                let pool = PgPoolOptions::new()
+                    .max_connections(5)
+                    .connect(&db_url)
+                    .await?;
+                let mut tx = pool.begin().await?;
 
-    insert_and_verify(&mut tx, test_id).await?;
+                let id = UserId::new(String::from("foo"))?;
+                let user = User::new(id.clone());
 
-    tx.commit().await?;
+                let fetched_user = InternalUserRepository::find_by_id(&id, &mut tx).await?;
+                assert!(fetched_user.is_none());
 
-    Ok(())
+                InternalUserRepository::create(&user, &mut tx).await?;
+
+                let fetched_user = InternalUserRepository::find_by_id(&id, &mut tx).await?;
+                assert_eq!(fetched_user, Some(user));
+
+                tx.rollback().await?;
+                Ok(())
+            }
+        }
+    }
 }
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let conn_str =
-        std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required for this example");
-    let pool = new_conn(&conn_str).await?;
-
-    let test_id = 1_i32;
-    let _ = query!(r#"DELETE FROM todos WHERE id = $1"#, test_id)
-        .execute(&pool)
-        .await?;
-
-    explicit_rollback_example(&pool, test_id).await?;
-
-    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
-        .fetch_one(&pool)
-        .await;
-
-    assert!(inserted_todo.is_err());
-
-    implicit_rollback_example(&pool, test_id).await?;
-
-    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
-        .fetch_one(&pool)
-        .await;
-
-    assert!(inserted_todo.is_err());
-
-    commit_example(&pool, test_id).await?;
-
-    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
-        .fetch_one(&pool)
-        .await;
-
-    assert!(inserted_todo.is_ok());
-
-    // let todo = with_tx(&pool, |tx| get_todo(tx, test_id)).await?;
-
-    // println!("todo: {:?}", todo);
-
     Ok(())
 }
