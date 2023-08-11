@@ -1,5 +1,11 @@
 set -e
 psql -U admin sampledb <<EOSQL
+CREATE TABLE Todos (
+  id          SERIAL PRIMARY KEY,
+  description VARCHAR(1000) NOT NULL,
+  done        BOOLEAN       NOT NULL DEFAULT FALSE
+);
+
 CREATE TABLE Accounts (
   account_id        SERIAL PRIMARY KEY,
   account_name      VARCHAR(20),
