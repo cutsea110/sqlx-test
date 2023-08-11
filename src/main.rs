@@ -79,7 +79,7 @@ pub mod domain {
 pub mod infrastructure {
     pub mod pg_db {
         use async_trait::async_trait;
-        use sqlx::{PgConnection, PgPool};
+        use sqlx::{PgPool, Transaction};
 
         use crate::domain::{
             entity::user::{User, UserId},
@@ -106,15 +106,31 @@ pub mod infrastructure {
         #[async_trait]
         impl UserRepository for PgUserRepository {
             async fn create(&self, user: &User) -> Result<(), DomainError> {
-                let mut conn = self.pool.acquire().await?;
-                let result = InternalUserRepository::create(user, &mut conn).await?;
-                Ok(result)
+                let mut tx = self.pool.begin().await?;
+                match InternalUserRepository::create(user, &mut tx).await {
+                    Ok(result) => {
+                        tx.commit().await?;
+                        Ok(result)
+                    }
+                    Err(err) => {
+                        tx.rollback().await?;
+                        Err(err)
+                    }
+                }
             }
 
             async fn find_by_id(&self, id: &UserId) -> Result<Option<User>, DomainError> {
-                let mut conn = self.pool.acquire().await?;
-                let user = InternalUserRepository::find_by_id(id, &mut conn).await?;
-                Ok(user)
+                let mut tx = self.pool.begin().await?;
+                match InternalUserRepository::find_by_id(id, &mut tx).await {
+                    Ok(result) => {
+                        tx.commit().await?;
+                        Ok(result)
+                    }
+                    Err(err) => {
+                        tx.rollback().await?;
+                        Err(err)
+                    }
+                }
             }
         }
 
@@ -123,23 +139,23 @@ pub mod infrastructure {
         impl InternalUserRepository {
             pub(in crate::infrastructure) async fn create(
                 user: &User,
-                conn: &mut PgConnection,
+                tx: &mut Transaction<'_, sqlx::Postgres>,
             ) -> Result<(), DomainError> {
                 sqlx::query("INSERT INTO bookshelf_user (id) VALUES ($1)")
                     .bind(user.id.as_str())
-                    .execute(conn)
+                    .execute(&mut **tx)
                     .await?;
                 Ok(())
             }
 
             async fn find_by_id(
                 id: &UserId,
-                conn: &mut PgConnection,
+                tx: &mut Transaction<'_, sqlx::Postgres>,
             ) -> Result<Option<User>, DomainError> {
                 let row: Option<UserRow> =
                     sqlx::query_as("SELECT * FROM bookshelf_user WHERE id = $1")
                         .bind(id.as_str())
-                        .fetch_optional(conn)
+                        .fetch_optional(&mut **tx)
                         .await?;
 
                 let id = row.map(|row| UserId::new(row.id)).transpose()?;
