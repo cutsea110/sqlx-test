@@ -12,7 +12,5 @@ async-trait = "0.1.72"
 sqlx = { varsion = "0.71", features = [ "postgres", "runtime-async-std", "tls-native-tls" ] }
 futures = "0.3.28"
 anyhow = "1.0.72"
-mockall = "0.11.4"
 openssl = { version = "0.10", features = ["vendored"] }
 thiserror = "1.0"
-validator = "0.16.1"
