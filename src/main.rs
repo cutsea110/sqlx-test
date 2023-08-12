@@ -105,11 +105,9 @@ pub mod infrastructure {
                 Self { pool }
             }
 
-            async fn with_transaction<T, Fut>(
-                &self,
-                f: impl FnOnce(&mut PgTransaction<'_>) -> Fut,
-            ) -> Result<T, DomainError>
+            async fn with_transaction<T, F, Fut>(&self, f: F) -> Result<T, DomainError>
             where
+                F: FnOnce(&mut PgTransaction<'_>) -> Fut,
                 Fut: Future<Output = Result<T, DomainError>>,
             {
                 let mut tx = self.pool.begin().await?;
