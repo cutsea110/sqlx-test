@@ -80,14 +80,15 @@ pub mod infrastructure {
     pub mod pg_db {
         use async_trait::async_trait;
         use sqlx::{PgPool, Transaction};
-
-        type PgTransaction<'a> = Transaction<'a, sqlx::Postgres>;
+        use std::future::Future;
 
         use crate::domain::{
             entity::user::{User, UserId},
             error::DomainError,
             repository::user_repository::UserRepository,
         };
+
+        type PgTransaction<'a> = Transaction<'a, sqlx::Postgres>;
 
         #[derive(sqlx::FromRow)]
         struct UserRow {
@@ -102,6 +103,26 @@ pub mod infrastructure {
         impl PgUserRepository {
             pub fn new(pool: PgPool) -> Self {
                 Self { pool }
+            }
+
+            async fn with_transaction<T, Fut>(
+                &self,
+                f: impl FnOnce(&mut PgTransaction<'_>) -> Fut,
+            ) -> Result<T, DomainError>
+            where
+                Fut: Future<Output = Result<T, DomainError>>,
+            {
+                let mut tx = self.pool.begin().await?;
+                match f(&mut tx).await {
+                    Ok(v) => {
+                        tx.commit().await?;
+                        Ok(v)
+                    }
+                    Err(err) => {
+                        tx.rollback().await?;
+                        Err(err)
+                    }
+                }
             }
         }
 
