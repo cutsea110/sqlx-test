@@ -3,6 +3,7 @@ use sqlx::Connection;
 
 #[derive(Debug)]
 enum DomainError {
+    ConnectFailed,
     SqlxError(sqlx::Error),
 }
 
@@ -23,7 +24,7 @@ impl Usecase {
     pub async fn new(conn_str: &str) -> Result<Self> {
         let conn = PgConnection::connect(conn_str)
             .await
-            .map_err(DomainError::SqlxError)?;
+            .map_err(|_| DomainError::ConnectFailed)?;
 
         Ok(Self { conn })
     }
@@ -31,6 +32,7 @@ impl Usecase {
     async fn collect_users(&mut self) -> Result<Vec<User>> {
         self.conn
             .transaction(|txn| {
+                // TODO: I want to separate this part out to repository layer.
                 Box::pin(async move {
                     sqlx::query_as("SELECT * FROM users")
                         .fetch_all(&mut **txn)
