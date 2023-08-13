@@ -7,4 +7,7 @@ CREATE TABLE users (
   created_at timestamp NOT NULL default current_timestamp,
   updated_at timestamp NOT NULL default current_timestamp
 );
+
+INSERT INTO users (name, email) VALUES ('cutsea110', 'cutsea110@gmail.com');
+INSERT INTO users (name, email) VALUES ('nobsun', 'nobsun@gmail.com');
 EOSQL
