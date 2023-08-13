@@ -1,5 +1,5 @@
 use sqlx::postgres::PgConnection;
-use sqlx::Connection;
+use sqlx::{Connection, Postgres, Transaction};
 
 #[derive(Debug)]
 enum DomainError {
@@ -41,6 +41,44 @@ impl Usecase {
             })
             .await
             .map_err(DomainError::SqlxError)
+    }
+}
+
+#[async_trait::async_trait]
+trait UserRepository<DB: sqlx::Database> {
+    async fn find_all(&self, tx: &mut Transaction<'_, DB>) -> Result<Vec<User>>;
+}
+
+struct PgRepo {}
+
+impl PgRepo {
+    pub async fn new() -> Self {
+        Self {}
+    }
+}
+impl UserRepository<Postgres> for PgRepo {
+    fn find_all<'life0, 'life1, 'life2, 'async_trait>(
+        &'life0 self,
+        tx: &'life1 mut Transaction<'life2, Postgres>,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<Vec<User>>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        'life2: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(async move {
+            sqlx::query_as("SELECT * FROM users")
+                .fetch_all(&mut **tx)
+                .await
+                .map_err(DomainError::SqlxError)
+        })
     }
 }
 
