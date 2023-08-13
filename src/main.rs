@@ -1,6 +1,13 @@
 use sqlx::postgres::PgConnection;
 use sqlx::Connection;
 
+#[derive(Debug)]
+enum DomainError {
+    SqlxError(sqlx::Error),
+}
+
+type Result<T> = std::result::Result<T, DomainError>;
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 struct User {
     id: i32,
@@ -13,7 +20,15 @@ struct Usecase {
 }
 
 impl Usecase {
-    async fn collect_users(&mut self) -> sqlx::Result<Vec<User>> {
+    pub async fn new(conn_str: &str) -> Result<Self> {
+        let conn = PgConnection::connect(conn_str)
+            .await
+            .map_err(DomainError::SqlxError)?;
+
+        Ok(Self { conn })
+    }
+
+    async fn collect_users(&mut self) -> Result<Vec<User>> {
         self.conn
             .transaction(|txn| {
                 Box::pin(async move {
@@ -23,17 +38,19 @@ impl Usecase {
                 })
             })
             .await
+            .map_err(DomainError::SqlxError)
     }
 }
 
 #[async_std::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let db_url =
         std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required. for this test");
-    let conn = PgConnection::connect(&db_url).await?;
-    let mut usecase = Usecase { conn };
+
+    let mut usecase = Usecase::new(&db_url).await?;
 
     let users = usecase.collect_users().await?;
+
     println!("{:#?}", users);
 
     Ok(())
