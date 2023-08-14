@@ -48,7 +48,10 @@ impl Usecase {
 
 #[async_trait::async_trait]
 trait UserRepository<DB: sqlx::Database> {
-    async fn find_all(&self, tx: &mut Transaction<'_, DB>) -> Result<Vec<User>>;
+    async fn find_all(
+        &self,
+        tx: &mut Transaction<'_, DB>,
+    ) -> std::result::Result<Vec<User>, sqlx::Error>;
 }
 
 struct PgRepo {}
@@ -62,7 +65,9 @@ impl UserRepository<Postgres> for PgRepo {
     fn find_all<'life0, 'life1, 'life2, 'async_trait>(
         &'life0 self,
         tx: &'life1 mut Transaction<'life2, Postgres>,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<User>>> + Send + 'async_trait>>
+    ) -> Pin<
+        Box<dyn Future<Output = std::result::Result<Vec<User>, sqlx::Error>> + Send + 'async_trait>,
+    >
     where
         'life0: 'async_trait,
         'life1: 'async_trait,
@@ -73,7 +78,6 @@ impl UserRepository<Postgres> for PgRepo {
             sqlx::query_as("SELECT * FROM users")
                 .fetch_all(&mut **tx)
                 .await
-                .map_err(DomainError::SqlxError)
         })
     }
 }
