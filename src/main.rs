@@ -54,11 +54,17 @@ trait UserRepository<DB: sqlx::Database> {
     ) -> std::result::Result<Vec<User>, sqlx::Error>;
 }
 
-struct PgRepo {}
+struct PgRepo {
+    conn: PgConnection,
+}
 
 impl PgRepo {
-    pub async fn new() -> Self {
-        Self {}
+    pub async fn new(conn_str: &str) -> Self {
+        let conn = PgConnection::connect(conn_str)
+            .await
+            .expect("connect to database");
+
+        Self { conn }
     }
 }
 impl UserRepository<Postgres> for PgRepo {
