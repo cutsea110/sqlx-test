@@ -1,3 +1,5 @@
+use core::{future::Future, marker::Send, pin::Pin};
+
 use sqlx::postgres::PgConnection;
 use sqlx::{Connection, Postgres, Transaction};
 
@@ -60,13 +62,7 @@ impl UserRepository<Postgres> for PgRepo {
     fn find_all<'life0, 'life1, 'life2, 'async_trait>(
         &'life0 self,
         tx: &'life1 mut Transaction<'life2, Postgres>,
-    ) -> core::pin::Pin<
-        Box<
-            dyn core::future::Future<Output = Result<Vec<User>>>
-                + core::marker::Send
-                + 'async_trait,
-        >,
-    >
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<User>>> + Send + 'async_trait>>
     where
         'life0: 'async_trait,
         'life1: 'async_trait,
