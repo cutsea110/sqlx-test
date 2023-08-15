@@ -21,11 +21,7 @@ struct Usecase {
 }
 
 impl Usecase {
-    pub async fn new(conn_str: &str) -> Result<Self> {
-        let conn = PgConnection::connect(conn_str)
-            .await
-            .map_err(|_| DomainError::ConnectFailed)?;
-
+    pub async fn new(conn: PgConnection) -> Result<Self> {
         Ok(Self { conn })
     }
 
@@ -48,8 +44,10 @@ impl Usecase {
 async fn main() -> Result<()> {
     let db_url =
         std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required. for this test");
-
-    let mut usecase = Usecase::new(&db_url).await?;
+    let conn = PgConnection::connect(&db_url)
+        .await
+        .map_err(|_| DomainError::ConnectFailed)?;
+    let mut usecase = Usecase::new(conn).await?;
 
     let users = usecase.collect_users().await?;
 
