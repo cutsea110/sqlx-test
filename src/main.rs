@@ -43,7 +43,7 @@ impl Usecase {
 #[async_std::main]
 async fn main() -> Result<()> {
     let db_url =
-        std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required. for this test");
+        std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required for this test");
     let conn = PgConnection::connect(&db_url)
         .await
         .map_err(|_| DomainError::ConnectFailed)?;
