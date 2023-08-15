@@ -1,7 +1,5 @@
-use core::{future::Future, marker::Send, pin::Pin};
-
 use sqlx::postgres::PgConnection;
-use sqlx::{Connection, Postgres, Transaction};
+use sqlx::Connection;
 
 #[derive(Debug)]
 enum DomainError {
@@ -43,48 +41,6 @@ impl Usecase {
             })
             .await
             .map_err(DomainError::SqlxError)
-    }
-}
-
-#[async_trait::async_trait]
-trait UserRepository<DB: sqlx::Database> {
-    async fn find_all(
-        &self,
-        tx: &mut Transaction<'_, DB>,
-    ) -> std::result::Result<Vec<User>, sqlx::Error>;
-}
-
-struct PgRepo {
-    conn: PgConnection,
-}
-
-impl PgRepo {
-    pub async fn new(conn_str: &str) -> Self {
-        let conn = PgConnection::connect(conn_str)
-            .await
-            .expect("connect to database");
-
-        Self { conn }
-    }
-}
-impl UserRepository<Postgres> for PgRepo {
-    fn find_all<'life0, 'life1, 'life2, 'async_trait>(
-        &'life0 self,
-        tx: &'life1 mut Transaction<'life2, Postgres>,
-    ) -> Pin<
-        Box<dyn Future<Output = std::result::Result<Vec<User>, sqlx::Error>> + Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        'life2: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            sqlx::query_as("SELECT * FROM users")
-                .fetch_all(&mut **tx)
-                .await
-        })
     }
 }
 
