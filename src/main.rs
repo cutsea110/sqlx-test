@@ -1,5 +1,5 @@
 use sqlx::postgres::PgConnection;
-use sqlx::Connection;
+use sqlx::{Connection, Transaction};
 
 #[derive(Debug)]
 enum DomainError {
@@ -37,6 +37,53 @@ impl Usecase {
             })
             .await
             .map_err(DomainError::SqlxError)
+    }
+}
+
+#[async_trait::async_trait]
+trait UserRepository {
+    type DB: sqlx::Database;
+
+    async fn find_all<'a>(&self, tx: &mut Transaction<'a, Self::DB>) -> Result<Vec<User>>;
+}
+
+struct PgRepo {
+    conn: PgConnection,
+}
+impl PgRepo {
+    pub async fn new(conn_str: &str) -> Self {
+        let conn = PgConnection::connect(conn_str)
+            .await
+            .expect("Failed to connect to DB");
+
+        Self { conn }
+    }
+}
+impl UserRepository for PgRepo {
+    type DB = sqlx::Postgres;
+
+    fn find_all<'a, 'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        tx: &'life1 mut Transaction<'a, Self::DB>,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<Vec<User>>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'a: 'async_trait,
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(async move {
+            sqlx::query_as("SELECT * FROM users")
+                .fetch_all(&mut **tx)
+                .await
+                .map_err(DomainError::SqlxError)
+        })
     }
 }
 
