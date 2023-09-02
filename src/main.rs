@@ -54,6 +54,52 @@ impl UserRepo {
             .await
             .map_err(DomainError::SqlxError)
     }
+
+    async fn get_user(&mut self, id: i32) -> Result<Option<User>> {
+        self.conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    sqlx::query_as("SELECT * FROM users WHERE id = $1")
+                        .bind(id)
+                        .fetch_optional(&mut **txn)
+                        .await
+                })
+            })
+            .await
+            .map_err(DomainError::SqlxError)
+    }
+
+    async fn modify_user(&mut self, id: i32, name: String, email: String) -> Result<User> {
+        self.conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    sqlx::query_as::<_, User>(
+                        "UPDATE users SET name = $2, email = $3 WHERE id = $1 RETURNING *",
+                    )
+                    .bind(id)
+                    .bind(name)
+                    .bind(email)
+                    .fetch_one(&mut **txn)
+                    .await
+                })
+            })
+            .await
+            .map_err(DomainError::SqlxError)
+    }
+
+    async fn delete_user(&mut self, id: i32) -> Result<User> {
+        self.conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    sqlx::query_as::<_, User>("DELETE FROM users WHERE id = $1 RETURNING *")
+                        .bind(id)
+                        .fetch_one(&mut **txn)
+                        .await
+                })
+            })
+            .await
+            .map_err(DomainError::SqlxError)
+    }
 }
 
 #[async_std::main]
@@ -65,15 +111,35 @@ async fn main() -> Result<()> {
         .map_err(|_| DomainError::ConnectFailed)?;
     let mut user_db = UserRepo::new(conn).await?;
 
-    let id = user_db
+    let john = user_db
         .add_user("John".to_string(), "john@google.com".to_string())
         .await?;
 
-    println!("id: {:?}", id);
+    println!("create: {:?}", john);
 
     let users = user_db.collect_users().await?;
 
-    println!("{:#?}", users);
+    println!("list:{:#?}", users);
+
+    let opt_john = user_db.get_user(john.id).await?;
+
+    println!("get: {:#?}", opt_john);
+
+    let opt_john = user_db
+        .modify_user(
+            john.id,
+            "John Doe".to_string(),
+            "d.john@gmail.com".to_string(),
+        )
+        .await?;
+
+    println!("update: {:?}", opt_john);
+
+    let _ = user_db.delete_user(john.id).await?;
+
+    let opt_john = user_db.get_user(john.id).await?;
+
+    println!("delete: {:?}", opt_john);
 
     Ok(())
 }
