@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
     let mut user_db = UserRepo::new(conn).await?;
 
     let john = user_db
-        .add_user("John".to_string(), "john@google.com".to_string())
+        .add_user("John".into(), "john@google.com".into())
         .await?;
 
     println!("create: {:?}", john);
@@ -126,11 +126,7 @@ async fn main() -> Result<()> {
     println!("get: {:#?}", opt_john);
 
     let opt_john = user_db
-        .modify_user(
-            john.id,
-            "John Doe".to_string(),
-            "d.john@gmail.com".to_string(),
-        )
+        .modify_user(john.id, "John Doe".into(), "d.john@gmail.com".into())
         .await?;
 
     println!("update: {:?}", opt_john);
