@@ -63,6 +63,48 @@ impl UserRepo {
             .map_err(DomainError::SqlxError)
     }
 
+    // テスト想定なのでつねに rollback する
+    async fn tx_test_low_level(&mut self, name: String, email: String) -> Result<User> {
+        let mut txn = self.conn.begin().await.map_err(DomainError::SqlxError)?;
+        Box::pin(async move {
+            // insert
+            let u = sqlx::query_as::<_, User>(
+                "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+            )
+            .bind(name)
+            .bind(email)
+            .fetch_one(&mut *txn)
+            .await;
+
+            println!("insert: {:?}", u);
+
+            match u {
+                Ok(u) => {
+                    // select
+                    println!("succeed to insert: {:?}", u);
+
+                    let u = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+                        .bind(u.id)
+                        .fetch_one(&mut *txn)
+                        .await
+                        .unwrap();
+                    println!("select: {:?}", u);
+
+                    txn.rollback().await.map_err(DomainError::SqlxError)?;
+
+                    return Ok(u);
+                }
+                Err(e) => {
+                    println!("insert failed: {:?}", e);
+
+                    txn.rollback().await.map_err(DomainError::SqlxError)?;
+                    return Err(DomainError::SqlxError(e));
+                }
+            }
+        })
+        .await
+    }
+
     async fn add_user(&mut self, name: String, email: String) -> Result<User> {
         self.conn
             .transaction(|txn| {
@@ -180,6 +222,12 @@ async fn main() -> Result<()> {
         .await?;
 
     println!("tx_test: {:?}", kate);
+
+    let steve = user_db
+        .tx_test_low_level("Steve".into(), "steve@gmail.com".into())
+        .await?;
+
+    println!("tx_test_low_level: {:?}", steve);
 
     Ok(())
 }
