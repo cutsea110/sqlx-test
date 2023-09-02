@@ -1,5 +1,5 @@
 use sqlx::postgres::PgConnection;
-use sqlx::Connection;
+use sqlx::{Connection, Postgres};
 
 #[derive(Debug)]
 enum RepositoryError {
@@ -23,6 +23,55 @@ struct PgRepo {
 impl PgRepo {
     pub async fn new(conn: PgConnection) -> Result<Self> {
         Ok(Self { conn })
+    }
+
+    async fn tx<'a, F, T: std::marker::Send>(&'a mut self, f: F) -> Result<T>
+    where
+        for<'c> F: FnOnce(
+                &'c mut sqlx::Transaction<Postgres>,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
+            > + std::marker::Send
+            + 'a,
+    {
+        let mut tx = self
+            .conn
+            .begin()
+            .await
+            .map_err(RepositoryError::SqlxError)?;
+
+        let ret = f(&mut tx).await;
+
+        match ret {
+            Ok(v) => {
+                tx.commit().await.map_err(RepositoryError::SqlxError)?;
+                Ok(v)
+            }
+            Err(e) => {
+                tx.rollback().await.map_err(RepositoryError::SqlxError)?;
+                Err(e)
+            }
+        }
+    }
+    async fn test_tx<'a, F, T: std::marker::Send>(&'a mut self, f: F) -> Result<T>
+    where
+        for<'c> F: FnOnce(
+                &'c mut sqlx::Transaction<Postgres>,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
+            > + std::marker::Send
+            + 'a,
+    {
+        let mut tx = self
+            .conn
+            .begin()
+            .await
+            .map_err(RepositoryError::SqlxError)?;
+
+        let ret = f(&mut tx).await;
+        // always rollback
+        tx.rollback().await.map_err(RepositoryError::SqlxError)?;
+        ret
     }
 
     async fn tx_test(&mut self, name: String, email: String) -> Result<User> {
