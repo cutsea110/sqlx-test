@@ -100,6 +100,25 @@ impl PgRepo {
         .await
     }
 
+    // TODO: リポジトリ内はこれにしたい
+    async fn _add_user<'a>(
+        &mut self,
+        txn: &'a mut sqlx::Transaction<'_, Postgres>,
+        name: String,
+        email: String,
+    ) -> Result<User> {
+        Box::pin(async move {
+            sqlx::query_as::<_, User>("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *")
+                .bind(name)
+                .bind(email)
+                .fetch_one(&mut **txn)
+                .await
+        })
+        .await
+        .map_err(RepositoryError::SqlxError)
+    }
+
+    // TODO: こっちは消したい
     async fn add_user(&mut self, name: String, email: String) -> Result<User> {
         self.conn
             .transaction(|txn| {
