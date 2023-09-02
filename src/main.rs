@@ -25,6 +25,44 @@ impl UserRepo {
         Ok(Self { conn })
     }
 
+    async fn tx_test(&mut self, name: String, email: String) -> Result<User> {
+        self.conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    // insert
+                    let u = sqlx::query_as::<_, User>(
+                        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+                    )
+                    .bind(name)
+                    .bind(email)
+                    .fetch_one(&mut **txn)
+                    .await
+                    .unwrap();
+                    println!("insert: {:?}", u);
+
+                    // select
+                    let u = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+                        .bind(u.id)
+                        .fetch_one(&mut **txn)
+                        .await
+                        .unwrap();
+
+                    println!("select: {:?}", u);
+
+                    // delete
+                    let _ =
+                        sqlx::query_as::<_, User>("DELETE FROM users WHERE id = $1 RETURNING *")
+                            .bind(u.id)
+                            .fetch_one(&mut **txn)
+                            .await;
+
+                    Ok(u)
+                })
+            })
+            .await
+            .map_err(DomainError::SqlxError)
+    }
+
     async fn add_user(&mut self, name: String, email: String) -> Result<User> {
         self.conn
             .transaction(|txn| {
@@ -136,6 +174,12 @@ async fn main() -> Result<()> {
     let opt_john = user_db.get_user(john.id).await?;
 
     println!("delete: {:?}", opt_john);
+
+    let kate = user_db
+        .tx_test("Kate".into(), "kate@gmail.com".into())
+        .await?;
+
+    println!("tx_test: {:?}", kate);
 
     Ok(())
 }
