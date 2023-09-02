@@ -16,11 +16,11 @@ struct User {
     email: String,
 }
 
-struct UserRepo {
+struct PgRepo {
     conn: PgConnection,
 }
 
-impl UserRepo {
+impl PgRepo {
     pub async fn new(conn: PgConnection) -> Result<Self> {
         Ok(Self { conn })
     }
@@ -193,7 +193,7 @@ async fn main() -> Result<()> {
     let conn = PgConnection::connect(&db_url)
         .await
         .map_err(|_| RepositoryError::ConnectFailed)?;
-    let mut user_db = UserRepo::new(conn).await?;
+    let mut user_db = PgRepo::new(conn).await?;
 
     let john = user_db
         .add_user("John".into(), "john@google.com".into())
