@@ -2,12 +2,12 @@ use sqlx::postgres::PgConnection;
 use sqlx::Connection;
 
 #[derive(Debug)]
-enum DomainError {
+enum RepositoryError {
     ConnectFailed,
     SqlxError(sqlx::Error),
 }
 
-type Result<T> = std::result::Result<T, DomainError>;
+type Result<T> = std::result::Result<T, RepositoryError>;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 struct User {
@@ -60,12 +60,16 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 
     // テスト想定なのでつねに rollback する
     async fn tx_test_low_level(&mut self, name: String, email: String) -> Result<User> {
-        let mut txn = self.conn.begin().await.map_err(DomainError::SqlxError)?;
+        let mut txn = self
+            .conn
+            .begin()
+            .await
+            .map_err(RepositoryError::SqlxError)?;
         Box::pin(async move {
             // insert
             let u = sqlx::query_as::<_, User>(
@@ -90,15 +94,15 @@ impl UserRepo {
                         .unwrap();
                     println!("select: {:?}", u);
 
-                    txn.rollback().await.map_err(DomainError::SqlxError)?;
+                    txn.rollback().await.map_err(RepositoryError::SqlxError)?;
 
                     return Ok(u);
                 }
                 Err(e) => {
                     println!("insert failed: {:?}", e);
 
-                    txn.rollback().await.map_err(DomainError::SqlxError)?;
-                    return Err(DomainError::SqlxError(e));
+                    txn.rollback().await.map_err(RepositoryError::SqlxError)?;
+                    return Err(RepositoryError::SqlxError(e));
                 }
             }
         })
@@ -119,7 +123,7 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 
     async fn collect_users(&mut self) -> Result<Vec<User>> {
@@ -132,7 +136,7 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 
     async fn get_user(&mut self, id: i32) -> Result<Option<User>> {
@@ -146,7 +150,7 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 
     async fn modify_user(&mut self, id: i32, name: String, email: String) -> Result<User> {
@@ -164,7 +168,7 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 
     async fn delete_user(&mut self, id: i32) -> Result<User> {
@@ -178,7 +182,7 @@ impl UserRepo {
                 })
             })
             .await
-            .map_err(DomainError::SqlxError)
+            .map_err(RepositoryError::SqlxError)
     }
 }
 
@@ -188,7 +192,7 @@ async fn main() -> Result<()> {
         std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required for this test");
     let conn = PgConnection::connect(&db_url)
         .await
-        .map_err(|_| DomainError::ConnectFailed)?;
+        .map_err(|_| RepositoryError::ConnectFailed)?;
     let mut user_db = UserRepo::new(conn).await?;
 
     let john = user_db
