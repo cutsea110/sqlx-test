@@ -16,11 +16,11 @@ struct User {
     email: String,
 }
 
-struct Usecase {
+struct UserRepo {
     conn: PgConnection,
 }
 
-impl Usecase {
+impl UserRepo {
     pub async fn new(conn: PgConnection) -> Result<Self> {
         Ok(Self { conn })
     }
@@ -47,9 +47,9 @@ async fn main() -> Result<()> {
     let conn = PgConnection::connect(&db_url)
         .await
         .map_err(|_| DomainError::ConnectFailed)?;
-    let mut usecase = Usecase::new(conn).await?;
+    let mut user_db = UserRepo::new(conn).await?;
 
-    let users = usecase.collect_users().await?;
+    let users = user_db.collect_users().await?;
 
     println!("{:#?}", users);
 
