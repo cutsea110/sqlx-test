@@ -25,10 +25,26 @@ impl UserRepo {
         Ok(Self { conn })
     }
 
+    async fn add_user(&mut self, name: String, email: String) -> Result<User> {
+        self.conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    sqlx::query_as::<_, User>(
+                        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
+                    )
+                    .bind(name)
+                    .bind(email)
+                    .fetch_one(&mut **txn)
+                    .await
+                })
+            })
+            .await
+            .map_err(DomainError::SqlxError)
+    }
+
     async fn collect_users(&mut self) -> Result<Vec<User>> {
         self.conn
             .transaction(|txn| {
-                // TODO: I want to separate this part out to repository layer.
                 Box::pin(async move {
                     sqlx::query_as("SELECT * FROM users")
                         .fetch_all(&mut **txn)
@@ -48,6 +64,12 @@ async fn main() -> Result<()> {
         .await
         .map_err(|_| DomainError::ConnectFailed)?;
     let mut user_db = UserRepo::new(conn).await?;
+
+    let id = user_db
+        .add_user("John".to_string(), "john@google.com".to_string())
+        .await?;
+
+    println!("id: {:?}", id);
 
     let users = user_db.collect_users().await?;
 
