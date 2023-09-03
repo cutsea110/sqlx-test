@@ -16,6 +16,20 @@ struct User {
     email: String,
 }
 
+struct UserUsecase {
+    repo: Box<dyn IUserRepo>,
+}
+impl HaveUserRepo for UserUsecase {
+    fn dao(&self) -> &dyn IUserRepo {
+        &*self.repo
+    }
+}
+
+trait IUserRepo {}
+trait HaveUserRepo {
+    fn dao(&self) -> &dyn IUserRepo;
+}
+
 struct PgRepo {
     conn: PgConnection,
 }
@@ -53,6 +67,7 @@ impl PgRepo {
             }
         }
     }
+
     async fn test_tx_run<'a, F, T: std::marker::Send>(&'a mut self, f: F) -> Result<T>
     where
         for<'c> F: FnOnce(
