@@ -23,6 +23,46 @@ impl HaveUserRepo for UserUsecase {
     fn dao(&self) -> &dyn IUserRepo {
         &*self.repo
     }
+    fn tx_run<'a, 'async_trait, F, T>(
+        &'a mut self,
+        f: F,
+    ) -> core::pin::Pin<
+        Box<dyn core::future::Future<Output = Result<T>> + core::marker::Send + 'async_trait>,
+    >
+    where
+        T: std::marker::Send,
+        for<'c> F: FnOnce(
+                &'c mut sqlx::Transaction<Postgres>,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
+            > + std::marker::Send
+            + 'a,
+        'a: 'async_trait,
+        F: 'async_trait,
+        T: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(async move {
+            let mut conn =
+                sqlx::PgConnection::connect("postgres://postgres:postgres@localhost:5432/test")
+                    .await
+                    .map_err(RepositoryError::SqlxError)?;
+            let mut tx = conn.begin().await.map_err(RepositoryError::SqlxError)?;
+
+            let ret = f(&mut tx).await;
+
+            match ret {
+                Ok(v) => {
+                    tx.commit().await.map_err(RepositoryError::SqlxError)?;
+                    Ok(v)
+                }
+                Err(e) => {
+                    tx.rollback().await.map_err(RepositoryError::SqlxError)?;
+                    Err(e)
+                }
+            }
+        })
+    }
 }
 impl UserUsecase {
     pub fn new(repo: Box<dyn IUserRepo>) -> Self {
@@ -30,9 +70,27 @@ impl UserUsecase {
     }
 }
 
-trait IUserRepo {}
+#[async_trait::async_trait]
+trait IUserRepo {
+    async fn add_user<'a>(
+        &mut self,
+        txn: &'a mut sqlx::Transaction<'_, Postgres>,
+        name: String,
+        email: String,
+    ) -> Result<User>;
+}
+#[async_trait::async_trait]
 trait HaveUserRepo {
     fn dao(&self) -> &dyn IUserRepo;
+    async fn tx_run<'a, F, T>(&'a mut self, f: F) -> Result<T>
+    where
+        T: std::marker::Send,
+        for<'c> F: FnOnce(
+                &'c mut sqlx::Transaction<Postgres>,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
+            > + std::marker::Send
+            + 'a;
 }
 
 struct PgRepo {
