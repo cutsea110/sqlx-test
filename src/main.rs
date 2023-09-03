@@ -24,6 +24,11 @@ impl HaveUserRepo for UserUsecase {
         &*self.repo
     }
 }
+impl UserUsecase {
+    pub fn new(repo: Box<dyn IUserRepo>) -> Self {
+        Self { repo }
+    }
+}
 
 trait IUserRepo {}
 trait HaveUserRepo {
