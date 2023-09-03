@@ -1,5 +1,8 @@
 use sqlx::postgres::PgConnection;
 use sqlx::{Connection, Postgres};
+use std::future::Future;
+use std::marker::Send;
+use std::pin::Pin;
 
 #[derive(Debug)]
 enum RepositoryError {
@@ -23,24 +26,21 @@ impl HaveUserRepo for UserUsecase {
     fn dao(&self) -> &dyn IUserRepo {
         &*self.repo
     }
-    fn tx_run<'a, 'async_trait, F, T>(
+    fn tx_run<'a, 'b, F, T>(
         &'a mut self,
         f: F,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = Result<T>> + core::marker::Send + 'async_trait>,
-    >
+    ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'b>>
     where
-        T: std::marker::Send,
+        T: Send,
         for<'c> F: FnOnce(
                 &'c mut sqlx::Transaction<Postgres>,
-            ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
-            > + std::marker::Send
+            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
+            + Send
             + 'a,
-        'a: 'async_trait,
-        F: 'async_trait,
-        T: 'async_trait,
-        Self: 'async_trait,
+        'a: 'b,
+        F: 'b,
+        T: 'b,
+        Self: 'b,
     {
         Box::pin(async move {
             let mut conn =
@@ -84,12 +84,11 @@ trait HaveUserRepo {
     fn dao(&self) -> &dyn IUserRepo;
     async fn tx_run<'a, F, T>(&'a mut self, f: F) -> Result<T>
     where
-        T: std::marker::Send,
+        T: Send,
         for<'c> F: FnOnce(
                 &'c mut sqlx::Transaction<Postgres>,
-            ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
-            > + std::marker::Send
+            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
+            + Send
             + 'a;
 }
 
@@ -102,13 +101,12 @@ impl PgRepo {
         Ok(Self { conn })
     }
 
-    async fn tx_run<'a, F, T: std::marker::Send>(&'a mut self, f: F) -> Result<T>
+    async fn tx_run<'a, F, T: Send>(&'a mut self, f: F) -> Result<T>
     where
         for<'c> F: FnOnce(
                 &'c mut sqlx::Transaction<Postgres>,
-            ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
-            > + std::marker::Send
+            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
+            + Send
             + 'a,
     {
         let mut tx = self
@@ -131,13 +129,12 @@ impl PgRepo {
         }
     }
 
-    async fn test_tx_run<'a, F, T: std::marker::Send>(&'a mut self, f: F) -> Result<T>
+    async fn test_tx_run<'a, F, T: Send>(&'a mut self, f: F) -> Result<T>
     where
         for<'c> F: FnOnce(
                 &'c mut sqlx::Transaction<Postgres>,
-            ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<T>> + std::marker::Send + 'c>,
-            > + std::marker::Send
+            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
+            + Send
             + 'a,
     {
         let mut tx = self
