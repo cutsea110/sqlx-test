@@ -1,338 +1,106 @@
-use sqlx::postgres::PgConnection;
-use sqlx::{Connection, Postgres};
-use std::future::Future;
-use std::marker::Send;
-use std::pin::Pin;
+use sqlx::query;
 
-#[derive(Debug)]
-enum RepositoryError {
-    ConnectFailed,
-    SqlxError(sqlx::Error),
-}
+async fn insert_and_verify(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    test_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    query!(
+        r#"INSERT INTO todos (id, description)
+        VALUES ( $1, $2 )
+        "#,
+        test_id,
+        "test todo"
+    )
+    // In 0.7, `Transaction` can no longer implement `Executor` directly,
+    // so it must be dereferenced to the internal connection type.
+    .execute(&mut **transaction)
+    .await?;
 
-type Result<T> = std::result::Result<T, RepositoryError>;
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
-struct User {
-    id: i32,
-    name: String,
-    email: String,
-}
-
-struct UserUsecase {
-    repo: Box<dyn IUserRepo>,
-}
-impl HaveUserRepo for UserUsecase {
-    fn dao(&self) -> &dyn IUserRepo {
-        &*self.repo
-    }
-    fn tx_run<'a, 'b, F, T>(
-        &'a mut self,
-        f: F,
-    ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'b>>
-    where
-        T: Send,
-        for<'c> F: FnOnce(
-                &'c mut sqlx::Transaction<Postgres>,
-            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
-            + Send
-            + 'a,
-        'a: 'b,
-        F: 'b,
-        T: 'b,
-        Self: 'b,
-    {
-        Box::pin(async move {
-            let mut conn =
-                sqlx::PgConnection::connect("postgres://postgres:postgres@localhost:5432/test")
-                    .await
-                    .map_err(RepositoryError::SqlxError)?;
-            let mut tx = conn.begin().await.map_err(RepositoryError::SqlxError)?;
-
-            let ret = f(&mut tx).await;
-
-            match ret {
-                Ok(v) => {
-                    tx.commit().await.map_err(RepositoryError::SqlxError)?;
-                    Ok(v)
-                }
-                Err(e) => {
-                    tx.rollback().await.map_err(RepositoryError::SqlxError)?;
-                    Err(e)
-                }
-            }
-        })
-    }
-}
-impl UserUsecase {
-    pub fn new(repo: Box<dyn IUserRepo>) -> Self {
-        Self { repo }
-    }
-}
-
-#[async_trait::async_trait]
-trait IUserRepo {
-    async fn add_user<'a>(
-        &mut self,
-        txn: &'a mut sqlx::Transaction<'_, Postgres>,
-        name: String,
-        email: String,
-    ) -> Result<User>;
-}
-#[async_trait::async_trait]
-trait HaveUserRepo {
-    fn dao(&self) -> &dyn IUserRepo;
-    async fn tx_run<'a, F, T>(&'a mut self, f: F) -> Result<T>
-    where
-        T: Send,
-        for<'c> F: FnOnce(
-                &'c mut sqlx::Transaction<Postgres>,
-            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
-            + Send
-            + 'a;
-}
-
-struct PgRepo {
-    conn: PgConnection,
-}
-
-impl PgRepo {
-    pub async fn new(conn: PgConnection) -> Result<Self> {
-        Ok(Self { conn })
-    }
-
-    async fn tx_run<'a, F, T: Send>(&'a mut self, f: F) -> Result<T>
-    where
-        for<'c> F: FnOnce(
-                &'c mut sqlx::Transaction<Postgres>,
-            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
-            + Send
-            + 'a,
-    {
-        let mut tx = self
-            .conn
-            .begin()
-            .await
-            .map_err(RepositoryError::SqlxError)?;
-
-        let ret = f(&mut tx).await;
-
-        match ret {
-            Ok(v) => {
-                tx.commit().await.map_err(RepositoryError::SqlxError)?;
-                Ok(v)
-            }
-            Err(e) => {
-                tx.rollback().await.map_err(RepositoryError::SqlxError)?;
-                Err(e)
-            }
-        }
-    }
-
-    async fn test_tx_run<'a, F, T: Send>(&'a mut self, f: F) -> Result<T>
-    where
-        for<'c> F: FnOnce(
-                &'c mut sqlx::Transaction<Postgres>,
-            ) -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>
-            + Send
-            + 'a,
-    {
-        let mut tx = self
-            .conn
-            .begin()
-            .await
-            .map_err(RepositoryError::SqlxError)?;
-
-        let ret = f(&mut tx).await;
-        // always rollback
-        tx.rollback().await.map_err(RepositoryError::SqlxError)?;
-        ret
-    }
-
-    async fn tx_test(&mut self, name: String, email: String) -> Result<User> {
-        self.test_tx_run(|txn| {
-            Box::pin(async move {
-                // insert
-                let u = sqlx::query_as::<_, User>(
-                    "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-                )
-                .bind(name)
-                .bind(email)
-                .fetch_one(&mut **txn)
-                .await
-                .unwrap();
-                println!("insert: {:?}", u);
-                // select
-                let u = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-                    .bind(u.id)
-                    .fetch_one(&mut **txn)
-                    .await
-                    .unwrap();
-                println!("select: {:?}", u);
-                Ok(u)
-            })
-        })
-        .await
-    }
-
-    // TODO: リポジトリ内はこれにしたい
-    async fn _add_user<'a>(
-        &mut self,
-        txn: &'a mut sqlx::Transaction<'_, Postgres>,
-        name: String,
-        email: String,
-    ) -> Result<User> {
-        Box::pin(async move {
-            sqlx::query_as::<_, User>("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *")
-                .bind(name)
-                .bind(email)
-                .fetch_one(&mut **txn)
-                .await
-        })
-        .await
-        .map_err(RepositoryError::SqlxError)
-    }
-
-    // TODO: こっちは消したい
-    async fn add_user(&mut self, name: String, email: String) -> Result<User> {
-        self.conn
-            .transaction(|txn| {
-                Box::pin(async move {
-                    sqlx::query_as::<_, User>(
-                        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-                    )
-                    .bind(name)
-                    .bind(email)
-                    .fetch_one(&mut **txn)
-                    .await
-                })
-            })
-            .await
-            .map_err(RepositoryError::SqlxError)
-    }
-
-    async fn collect_users(&mut self) -> Result<Vec<User>> {
-        self.conn
-            .transaction(|txn| {
-                Box::pin(async move {
-                    sqlx::query_as("SELECT * FROM users")
-                        .fetch_all(&mut **txn)
-                        .await
-                })
-            })
-            .await
-            .map_err(RepositoryError::SqlxError)
-    }
-
-    async fn get_user(&mut self, id: i32) -> Result<Option<User>> {
-        self.conn
-            .transaction(|txn| {
-                Box::pin(async move {
-                    sqlx::query_as("SELECT * FROM users WHERE id = $1")
-                        .bind(id)
-                        .fetch_optional(&mut **txn)
-                        .await
-                })
-            })
-            .await
-            .map_err(RepositoryError::SqlxError)
-    }
-
-    async fn modify_user(&mut self, id: i32, name: String, email: String) -> Result<User> {
-        self.conn
-            .transaction(|txn| {
-                Box::pin(async move {
-                    sqlx::query_as::<_, User>(
-                        "UPDATE users SET name = $2, email = $3 WHERE id = $1 RETURNING *",
-                    )
-                    .bind(id)
-                    .bind(name)
-                    .bind(email)
-                    .fetch_one(&mut **txn)
-                    .await
-                })
-            })
-            .await
-            .map_err(RepositoryError::SqlxError)
-    }
-
-    async fn delete_user(&mut self, id: i32) -> Result<User> {
-        self.conn
-            .transaction(|txn| {
-                Box::pin(async move {
-                    sqlx::query_as::<_, User>("DELETE FROM users WHERE id = $1 RETURNING *")
-                        .bind(id)
-                        .fetch_one(&mut **txn)
-                        .await
-                })
-            })
-            .await
-            .map_err(RepositoryError::SqlxError)
-    }
-}
-
-#[async_std::main]
-async fn main() -> Result<()> {
-    let db_url =
-        std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required for this test");
-    let conn = PgConnection::connect(&db_url)
-        .await
-        .map_err(|_| RepositoryError::ConnectFailed)?;
-    let mut user_db = PgRepo::new(conn).await?;
-
-    let john = user_db
-        .add_user("John".into(), "john@google.com".into())
+    // check that inserted todo can be fetched inside the uncommitted transaction
+    let _ = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
+        .fetch_one(&mut **transaction)
         .await?;
 
-    println!("create: {:?}", john);
+    Ok(())
+}
 
-    let users = user_db.collect_users().await?;
+async fn explicit_rollback_example(
+    pool: &sqlx::PgPool,
+    test_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut transaction = pool.begin().await?;
 
-    println!("list:{:#?}", users);
+    insert_and_verify(&mut transaction, test_id).await?;
 
-    let opt_john = user_db.get_user(john.id).await?;
+    transaction.rollback().await?;
 
-    println!("get: {:#?}", opt_john);
+    Ok(())
+}
 
-    let opt_john = user_db
-        .modify_user(john.id, "John Doe".into(), "d.john@gmail.com".into())
+async fn implicit_rollback_example(
+    pool: &sqlx::PgPool,
+    test_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut transaction = pool.begin().await?;
+
+    insert_and_verify(&mut transaction, test_id).await?;
+
+    // no explicit rollback here but the transaction object is dropped at the end of the scope
+    Ok(())
+}
+
+async fn commit_example(
+    pool: &sqlx::PgPool,
+    test_id: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut transaction = pool.begin().await?;
+
+    insert_and_verify(&mut transaction, test_id).await?;
+
+    transaction.commit().await?;
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let conn_str =
+        std::env::var("DATABASE_URL").expect("Env var DATABASE_URL is required for this example.");
+    let pool = sqlx::PgPool::connect(&conn_str).await?;
+
+    let test_id = 1;
+
+    // remove any old values that might be in the table already with this id from a previous run
+    let _ = query!(r#"DELETE FROM todos WHERE id = $1"#, test_id)
+        .execute(&pool)
         .await?;
 
-    println!("update: {:?}", opt_john);
+    explicit_rollback_example(&pool, test_id).await?;
 
-    let _ = user_db.delete_user(john.id).await?;
+    // check that inserted todo is not visible outside the transaction after explicit rollback
+    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
+        .fetch_one(&pool)
+        .await;
 
-    let opt_john = user_db.get_user(john.id).await?;
+    assert!(inserted_todo.is_err());
 
-    println!("delete: {:?}", opt_john);
+    implicit_rollback_example(&pool, test_id).await?;
 
-    let kate = user_db
-        .tx_test("Kate".into(), "kate@gmail.com".into())
-        .await?;
+    // check that inserted todo is not visible outside the transaction after implicit rollback
+    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
+        .fetch_one(&pool)
+        .await;
 
-    println!("tx_test: {:?}", kate);
+    assert!(inserted_todo.is_err());
 
-    let steve = user_db
-        .test_tx_run(|txn| {
-            Box::pin(async move {
-                // insert
-                let u = sqlx::query_as::<_, User>(
-                    "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-                )
-                .bind("Steve")
-                .bind("steve@gmail.com")
-                .fetch_one(&mut **txn)
-                .await
-                .unwrap();
+    commit_example(&pool, test_id).await?;
 
-                println!("insert: {:?}", u);
+    // check that inserted todo is visible outside the transaction after commit
+    let inserted_todo = query!(r#"SELECT FROM todos WHERE id = $1"#, test_id)
+        .fetch_one(&pool)
+        .await;
 
-                Ok(u)
-            })
-        })
-        .await?;
-
-    println!("tx_test: {:?}", steve);
+    assert!(inserted_todo.is_ok());
 
     Ok(())
 }

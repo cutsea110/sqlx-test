@@ -7,10 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = { version = "1.12.0", features = [ "attributes" ] }
-async-trait = "0.1.74"
-sqlx = { varsion = "0.71", features = [ "postgres", "runtime-async-std", "tls-native-tls" ] }
+sqlx = { varsion = "0.71", features = ["postgres", "runtime-tokio-native-tls"] }
 futures = "0.3.29"
-anyhow = "1.0.75"
-openssl = { version = "0.10", features = ["vendored"] }
-thiserror = "1.0"
+tokio = { version = "1.34.0", features = ["rt-multi-thread", "macros"] }
