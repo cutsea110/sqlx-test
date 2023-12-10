@@ -2,10 +2,17 @@ use sqlx::query;
 
 type Ctx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 type TxResult<'a, Output> = Result<(Output, &'a mut Ctx<'a>), &'a mut Ctx<'a>>;
-trait Tx {
-    type Output;
+trait Tx<'a, Output> {
+    fn run(self, ctx: &'a mut Ctx<'a>) -> TxResult<'a, Output>;
+}
 
-    fn run<'a>(self, ctx: &'a mut Ctx<'a>) -> TxResult<'a, Self::Output>;
+impl<'a, F, Output> Tx<'a, Output> for F
+where
+    F: Fn(&'a mut Ctx<'a>) -> TxResult<'a, Output>,
+{
+    fn run(self, ctx: &'a mut Ctx<'a>) -> TxResult<'a, Output> {
+        self(ctx)
+    }
 }
 
 async fn insert_and_verify(
