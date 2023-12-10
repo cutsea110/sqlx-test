@@ -31,6 +31,13 @@ where
     f.run(ctx).map(|(x, ctx2)| (g(x), ctx2))
 }
 
+fn or_else<'a, Ctx, T, F, G>(ctx: &'a mut Ctx, f: F, g: F) -> TxResult<'a, Ctx, T>
+where
+    F: Tx<'a, Ctx, T>,
+{
+    f.run(ctx).or_else(|ctx2| g.run(ctx2))
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
