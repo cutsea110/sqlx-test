@@ -1,16 +1,17 @@
 use sqlx::query;
 
 type Ctx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
-type TxResult<'a, Output> = Result<(Output, &'a mut Ctx<'a>), &'a mut Ctx<'a>>;
-trait Tx<'a, T> {
-    fn run(self, ctx: &'a mut Ctx<'a>) -> TxResult<'a, T>;
+type TxResult<'a, Ctx, Output> = Result<(Output, &'a mut Ctx), &'a mut Ctx>;
+trait Tx<'a, C, T> {
+    fn run(self, ctx: &'a mut C) -> TxResult<'a, C, T>;
 }
 
-impl<'a, F, T> Tx<'a, T> for F
+impl<'a, F, C, T> Tx<'a, C, T> for F
 where
-    F: Fn(&'a mut Ctx<'a>) -> TxResult<'a, T>,
+    C: 'a,
+    F: Fn(&'a mut C) -> TxResult<'a, C, T>,
 {
-    fn run(self, ctx: &'a mut Ctx<'a>) -> TxResult<'a, T> {
+    fn run(self, ctx: &'a mut C) -> TxResult<'a, C, T> {
         self(ctx)
     }
 }
