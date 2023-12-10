@@ -16,6 +16,14 @@ where
     }
 }
 
+fn bind<'a, Ctx, T, U, F, G>(ctx: &'a mut Ctx, f: F, g: G) -> TxResult<'a, Ctx, U>
+where
+    F: Tx<'a, Ctx, T>,
+    G: Fn(T, &'a mut Ctx) -> TxResult<'a, Ctx, U>,
+{
+    f.run(ctx).and_then(|(x, ctx2)| g(x, ctx2))
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
