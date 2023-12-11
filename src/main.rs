@@ -28,7 +28,23 @@ fn apply<'a, Ctx, T, U, F>(ctx: &'a mut Ctx, f: F, g: impl FnOnce(T) -> U) -> Tx
 where
     F: Tx<'a, Ctx, T>,
 {
-    f.run(ctx).map(|(x, ctx2)| (g(x), ctx2))
+    let (x, ctx2) = f.run(ctx)?;
+    Ok((g(x), ctx2))
+}
+
+fn apply2<'a, Ctx, T, U, V, F, G>(
+    ctx: &'a mut Ctx,
+    f: F,
+    g: G,
+    h: impl FnOnce(T, U) -> V,
+) -> TxResult<'a, Ctx, V>
+where
+    F: Tx<'a, Ctx, T>,
+    G: Tx<'a, Ctx, U>,
+{
+    let (x, ctx2) = f.run(ctx)?;
+    let (y, ctx3) = g.run(ctx2)?;
+    Ok((h(x, y), ctx3))
 }
 
 fn or_else<'a, Ctx, T, F, G>(ctx: &'a mut Ctx, f: F, g: F) -> TxResult<'a, Ctx, T>
