@@ -21,7 +21,9 @@ where
     F: Tx<'a, Ctx, T>,
     G: Fn(T, &'a mut Ctx) -> TxResult<'a, Ctx, U>,
 {
-    f.run(ctx).and_then(|(x, ctx2)| g(x, ctx2))
+    let (x, ctx2) = f.run(ctx)?;
+
+    g(x, ctx2)
 }
 
 fn apply<'a, Ctx, T, U, F>(ctx: &'a mut Ctx, f: F, g: impl FnOnce(T) -> U) -> TxResult<'a, Ctx, U>
@@ -29,6 +31,7 @@ where
     F: Tx<'a, Ctx, T>,
 {
     let (x, ctx2) = f.run(ctx)?;
+
     Ok((g(x), ctx2))
 }
 
@@ -44,6 +47,7 @@ where
 {
     let (x, ctx2) = f.run(ctx)?;
     let (y, ctx3) = g.run(ctx2)?;
+
     Ok((h(x, y), ctx3))
 }
 
