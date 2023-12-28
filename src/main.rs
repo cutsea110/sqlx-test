@@ -1,61 +1,20 @@
 use sqlx::query;
 
-type Ctx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
-type TxResult<'a, Ctx, Output> = Result<(Output, &'a mut Ctx), &'a mut Ctx>;
-trait Tx<'a, C, T> {
-    fn run(self, ctx: &'a mut C) -> TxResult<'a, C, T>;
+pub trait Tx<Ctx> {
+    type Item;
+    type Err;
+    fn run(&self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err>;
 }
 
-impl<'a, F, C, T> Tx<'a, C, T> for F
+impl<Ctx, T, E, F> Tx<Ctx> for F
 where
-    C: 'a,
-    F: Fn(&'a mut C) -> TxResult<'a, C, T>,
+    F: Fn(&mut Ctx) -> Result<T, E>,
 {
-    fn run(self, ctx: &'a mut C) -> TxResult<'a, C, T> {
+    type Item = T;
+    type Err = E;
+    fn run(&self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
         self(ctx)
     }
-}
-
-fn bind<'a, Ctx, T, U, F, G>(ctx: &'a mut Ctx, f: F, g: G) -> TxResult<'a, Ctx, U>
-where
-    F: Tx<'a, Ctx, T>,
-    G: Fn(T, &'a mut Ctx) -> TxResult<'a, Ctx, U>,
-{
-    let (x, ctx2) = f.run(ctx)?;
-
-    g(x, ctx2)
-}
-
-fn apply<'a, Ctx, T, U, F>(ctx: &'a mut Ctx, f: F, g: impl FnOnce(T) -> U) -> TxResult<'a, Ctx, U>
-where
-    F: Tx<'a, Ctx, T>,
-{
-    let (x, ctx2) = f.run(ctx)?;
-
-    Ok((g(x), ctx2))
-}
-
-fn apply2<'a, Ctx, T, U, V, F, G>(
-    ctx: &'a mut Ctx,
-    f: F,
-    g: G,
-    h: impl FnOnce(T, U) -> V,
-) -> TxResult<'a, Ctx, V>
-where
-    F: Tx<'a, Ctx, T>,
-    G: Tx<'a, Ctx, U>,
-{
-    let (x, ctx2) = f.run(ctx)?;
-    let (y, ctx3) = g.run(ctx2)?;
-
-    Ok((h(x, y), ctx3))
-}
-
-fn or_else<'a, Ctx, T, F, G>(ctx: &'a mut Ctx, f: F, g: F) -> TxResult<'a, Ctx, T>
-where
-    F: Tx<'a, Ctx, T>,
-{
-    f.run(ctx).or_else(|ctx2| g.run(ctx2))
 }
 
 async fn insert_and_verify(
