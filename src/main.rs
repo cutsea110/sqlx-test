@@ -22,9 +22,7 @@ async fn insert_and_verify(
     test_id: i64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     query!(
-        r#"INSERT INTO todos (id, description)
-        VALUES ( $1, $2 )
-        "#,
+        r#"INSERT INTO todos (id, description) VALUES ( $1, $2 )"#,
         test_id,
         "test todo"
     )
