@@ -17,6 +17,40 @@ where
     }
 }
 
+fn map<Ctx, T, U, E, F, B>(f: F, g: B) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    B: FnOnce(T) -> U,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(x) => Ok(g(x)),
+        Err(e) => Err(e),
+    }
+}
+
+fn and_then<Ctx, T, U, E, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    B: Tx<Ctx, Item = U, Err = E>,
+    G: FnOnce(T) -> B,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(x) => g(x).run(ctx),
+        Err(e) => Err(e),
+    }
+}
+
+fn or_else<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: Tx<Ctx, Item = T, Err = E>,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => Ok(t),
+        Err(_) => g.run(ctx),
+    }
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
