@@ -3,16 +3,16 @@ use sqlx::query;
 pub trait Tx<Ctx> {
     type Item;
     type Err;
-    fn run(&self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err>;
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err>;
 }
 
 impl<Ctx, T, E, F> Tx<Ctx> for F
 where
-    F: Fn(&mut Ctx) -> Result<T, E>,
+    F: FnOnce(&mut Ctx) -> Result<T, E>,
 {
     type Item = T;
     type Err = E;
-    fn run(&self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
         self(ctx)
     }
 }
