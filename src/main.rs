@@ -51,6 +51,17 @@ where
     }
 }
 
+fn join<Ctx, T, U, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<(T, U), E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: Tx<Ctx, Item = U, Err = E>,
+{
+    move |ctx| match (f.run(ctx), g.run(ctx)) {
+        (Ok(t), Ok(u)) => Ok((t, u)),
+        (Err(e), _) | (_, Err(e)) => Err(e),
+    }
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
