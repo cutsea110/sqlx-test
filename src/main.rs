@@ -129,6 +129,17 @@ where
     }
 }
 
+fn recover<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: FnOnce(E) -> Result<T, E>,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => Ok(t),
+        Err(e) => g(e),
+    }
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
