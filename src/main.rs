@@ -132,6 +132,17 @@ where
 fn recover<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
+    G: FnOnce(E) -> T,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => Ok(t),
+        Err(e) => Ok(g(e)),
+    }
+}
+
+fn try_recovery<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
     G: FnOnce(E) -> Result<T, E>,
 {
     move |ctx| match f.run(ctx) {
