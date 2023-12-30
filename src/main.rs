@@ -151,6 +151,28 @@ where
     }
 }
 
+fn abort<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: FnOnce(T) -> E,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => Err(g(t)),
+        Err(e) => Err(e),
+    }
+}
+
+fn try_abort<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: FnOnce(T) -> Result<T, E>,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => g(t),
+        Err(e) => Err(e),
+    }
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
