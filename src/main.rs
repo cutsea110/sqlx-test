@@ -89,6 +89,24 @@ where
     }
 }
 
+fn join4<Ctx, T, U, V, W, E, F, G, H, I>(
+    f: F,
+    g: G,
+    h: H,
+    i: I,
+) -> impl FnOnce(&mut Ctx) -> Result<(T, U, V, W), E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: Tx<Ctx, Item = U, Err = E>,
+    H: Tx<Ctx, Item = V, Err = E>,
+    I: Tx<Ctx, Item = W, Err = E>,
+{
+    move |ctx| match (f.run(ctx), g.run(ctx), h.run(ctx), i.run(ctx)) {
+        (Ok(t), Ok(u), Ok(v), Ok(w)) => Ok((t, u, v, w)),
+        (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => Err(e),
+    }
+}
+
 fn map_err<Ctx, T, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
