@@ -84,6 +84,17 @@ where
     }
 }
 
+fn try_map<Ctx, T, U, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: FnOnce(T) -> Result<U, E>,
+{
+    move |ctx| match f.run(ctx) {
+        Ok(t) => g(t),
+        Err(e) => Err(e),
+    }
+}
+
 async fn insert_and_verify(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     test_id: i64,
