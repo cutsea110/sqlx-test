@@ -28,10 +28,10 @@ where
     }
 }
 
-fn and_then<Ctx, T, U, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+fn and_then<Ctx, T, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = U, Err = F::Err>,
+    F: Tx<Ctx>,
+    G: Tx<Ctx, Item = T, Err = F::Err>,
     H: FnOnce(F::Item) -> G,
 {
     move |ctx| match f.run(ctx) {
