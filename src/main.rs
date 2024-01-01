@@ -17,13 +17,13 @@ where
     }
 }
 
-fn map<Ctx, T, U, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+fn map<Ctx, T, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(F::Item) -> U,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Item) -> T,
 {
     move |ctx| match f.run(ctx) {
-        Ok(x) => Ok(h(x)),
+        Ok(x) => Ok(g(x)),
         Err(e) => Err(e),
     }
 }
