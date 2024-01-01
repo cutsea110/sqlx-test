@@ -28,43 +28,43 @@ where
     }
 }
 
-fn and_then<Ctx, T, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, F::Err>
+fn and_then<Ctx, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<B::Item, F::Err>
 where
     F: Tx<Ctx>,
-    G: Tx<Ctx, Item = T, Err = F::Err>,
-    H: FnOnce(F::Item) -> G,
+    B: Tx<Ctx, Err = F::Err>,
+    G: FnOnce(F::Item) -> B,
 {
     move |ctx| match f.run(ctx) {
-        Ok(x) => h(x).run(ctx),
+        Ok(x) => g(x).run(ctx),
         Err(e) => Err(e),
     }
 }
 
-fn then<Ctx, T, U, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+fn then<Ctx, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<B::Item, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = U, Err = F::Err>,
-    H: FnOnce(Result<F::Item, F::Err>) -> G,
+    F: Tx<Ctx>,
+    B: Tx<Ctx, Err = F::Err>,
+    G: FnOnce(Result<F::Item, F::Err>) -> B,
 {
-    move |ctx| h(f.run(ctx)).run(ctx)
+    move |ctx| g(f.run(ctx)).run(ctx)
 }
 
-fn or_else<Ctx, T, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+fn or_else<Ctx, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<B::Item, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = F::Item, Err = F::Err>,
-    H: FnOnce(F::Err) -> G,
+    F: Tx<Ctx>,
+    B: Tx<Ctx, Item = F::Item, Err = F::Err>,
+    G: FnOnce(F::Err) -> B,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => h(e).run(ctx),
+        Err(e) => g(e).run(ctx),
     }
 }
 
-fn join<Ctx, T, U, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<(T, U), E>
+fn join<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<(F::Item, G::Item), F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = U, Err = F::Err>,
+    F: Tx<Ctx>,
+    G: Tx<Ctx, Err = F::Err>,
 {
     move |ctx| match (f.run(ctx), g.run(ctx)) {
         (Ok(t), Ok(u)) => Ok((t, u)),
@@ -72,15 +72,15 @@ where
     }
 }
 
-fn join3<Ctx, T, U, V, E, F, G, H>(
+fn join3<Ctx, F, G, H>(
     f: F,
     g: G,
     h: H,
-) -> impl FnOnce(&mut Ctx) -> Result<(T, U, V), E>
+) -> impl FnOnce(&mut Ctx) -> Result<(F::Item, G::Item, H::Item), F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = U, Err = F::Err>,
-    H: Tx<Ctx, Item = V, Err = F::Err>,
+    F: Tx<Ctx>,
+    G: Tx<Ctx, Err = F::Err>,
+    H: Tx<Ctx, Err = F::Err>,
 {
     move |ctx| match (f.run(ctx), g.run(ctx), h.run(ctx)) {
         (Ok(t), Ok(u), Ok(v)) => Ok((t, u, v)),
@@ -88,17 +88,17 @@ where
     }
 }
 
-fn join4<Ctx, T, U, V, W, E, F, G, H, I>(
+fn join4<Ctx, F, G, H, I>(
     f: F,
     g: G,
     h: H,
     i: I,
-) -> impl FnOnce(&mut Ctx) -> Result<(T, U, V, W), E>
+) -> impl FnOnce(&mut Ctx) -> Result<(F::Item, G::Item, H::Item, I::Item), F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    G: Tx<Ctx, Item = U, Err = F::Err>,
-    H: Tx<Ctx, Item = V, Err = F::Err>,
-    I: Tx<Ctx, Item = W, Err = F::Err>,
+    F: Tx<Ctx>,
+    G: Tx<Ctx, Err = F::Err>,
+    H: Tx<Ctx, Err = F::Err>,
+    I: Tx<Ctx, Err = F::Err>,
 {
     move |ctx| match (f.run(ctx), g.run(ctx), h.run(ctx), i.run(ctx)) {
         (Ok(t), Ok(u), Ok(v), Ok(w)) => Ok((t, u, v, w)),
@@ -106,43 +106,43 @@ where
     }
 }
 
-fn map_err<Ctx, T, E1, E2, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E2>
+fn map_err<Ctx, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, E>
 where
-    F: Tx<Ctx, Item = T, Err = E1>,
-    H: FnOnce(F::Err) -> E2,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Err) -> E,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => Err(h(e)),
+        Err(e) => Err(g(e)),
     }
 }
 
-fn try_map<Ctx, T, U, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+fn try_map<Ctx, T, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(F::Item) -> Result<U, F::Err>,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Item) -> Result<T, F::Err>,
 {
     move |ctx| match f.run(ctx) {
-        Ok(t) => h(t),
+        Ok(t) => g(t),
         Err(e) => Err(e),
     }
 }
 
-fn recover<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+fn recover<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(F::Err) -> F::Item,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Err) -> F::Item,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => Ok(h(e)),
+        Err(e) => Ok(g(e)),
     }
 }
 
-fn try_recovery<Ctx, T, E1, E2, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E2>
+fn try_recovery<Ctx, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, E>
 where
-    F: Tx<Ctx, Item = T, Err = E1>,
-    G: FnOnce(F::Err) -> Result<F::Item, E2>,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Err) -> Result<F::Item, E>,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
@@ -150,24 +150,24 @@ where
     }
 }
 
-fn abort<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+fn abort<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(F::Item) -> F::Err,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Item) -> F::Err,
 {
     move |ctx| match f.run(ctx) {
-        Ok(t) => Err(h(t)),
+        Ok(t) => Err(g(t)),
         Err(e) => Err(e),
     }
 }
 
-fn try_abort<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
+fn try_abort<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, F::Err>
 where
-    F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(F::Item) -> Result<F::Item, F::Err>,
+    F: Tx<Ctx>,
+    G: FnOnce(F::Item) -> Result<F::Item, F::Err>,
 {
     move |ctx| match f.run(ctx) {
-        Ok(t) => h(t),
+        Ok(t) => g(t),
         Err(e) => Err(e),
     }
 }
