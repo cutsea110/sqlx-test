@@ -40,6 +40,15 @@ where
     }
 }
 
+fn then<Ctx, T, U, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
+where
+    F: Tx<Ctx, Item = T, Err = E>,
+    G: Tx<Ctx, Item = U, Err = E>,
+    H: FnOnce(Result<F::Item, F::Err>) -> G,
+{
+    move |ctx| h(f.run(ctx)).run(ctx)
+}
+
 fn or_else<Ctx, T, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
