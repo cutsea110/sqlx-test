@@ -20,7 +20,7 @@ where
 fn map<Ctx, T, U, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(T) -> U,
+    H: FnOnce(F::Item) -> U,
 {
     move |ctx| match f.run(ctx) {
         Ok(x) => Ok(h(x)),
@@ -32,7 +32,7 @@ fn and_then<Ctx, T, U, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Resul
 where
     F: Tx<Ctx, Item = T, Err = E>,
     G: Tx<Ctx, Item = U, Err = E>,
-    H: FnOnce(T) -> G,
+    H: FnOnce(F::Item) -> G,
 {
     move |ctx| match f.run(ctx) {
         Ok(x) => h(x).run(ctx),
@@ -53,7 +53,7 @@ fn or_else<Ctx, T, E, F, G, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T,
 where
     F: Tx<Ctx, Item = T, Err = E>,
     G: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(E) -> G,
+    H: FnOnce(F::Err) -> G,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
@@ -109,7 +109,7 @@ where
 fn map_err<Ctx, T, E1, E2, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E2>
 where
     F: Tx<Ctx, Item = T, Err = E1>,
-    H: FnOnce(E1) -> E2,
+    H: FnOnce(F::Err) -> E2,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
@@ -120,7 +120,7 @@ where
 fn try_map<Ctx, T, U, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<U, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(T) -> Result<U, E>,
+    H: FnOnce(F::Item) -> Result<U, E>,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => h(t),
@@ -131,7 +131,7 @@ where
 fn recover<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(E) -> T,
+    H: FnOnce(F::Err) -> T,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
@@ -142,7 +142,7 @@ where
 fn try_recovery<Ctx, T, E1, E2, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<T, E2>
 where
     F: Tx<Ctx, Item = T, Err = E1>,
-    G: FnOnce(E1) -> Result<T, E2>,
+    G: FnOnce(F::Err) -> Result<T, E2>,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Ok(t),
@@ -153,7 +153,7 @@ where
 fn abort<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(T) -> E,
+    H: FnOnce(F::Item) -> E,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => Err(h(t)),
@@ -164,7 +164,7 @@ where
 fn try_abort<Ctx, T, E, F, H>(f: F, h: H) -> impl FnOnce(&mut Ctx) -> Result<T, E>
 where
     F: Tx<Ctx, Item = T, Err = E>,
-    H: FnOnce(T) -> Result<T, E>,
+    H: FnOnce(F::Item) -> Result<T, E>,
 {
     move |ctx| match f.run(ctx) {
         Ok(t) => h(t),
