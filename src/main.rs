@@ -28,14 +28,17 @@ where
     }
 }
 
-fn and_then<Ctx, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<B::Item, F::Err>
+fn and_then<Ctx, Tx1, Tx2, F>(
+    tx1: Tx1,
+    f: F,
+) -> impl FnOnce(&mut Ctx) -> Result<Tx2::Item, Tx1::Err>
 where
-    F: Tx<Ctx>,
-    B: Tx<Ctx, Err = F::Err>,
-    G: FnOnce(F::Item) -> B,
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    F: FnOnce(Tx1::Item) -> Tx2,
 {
-    move |ctx| match f.run(ctx) {
-        Ok(x) => g(x).run(ctx),
+    move |ctx| match tx1.run(ctx) {
+        Ok(x) => f(x).run(ctx),
         Err(e) => Err(e),
     }
 }
