@@ -167,13 +167,13 @@ where
     }
 }
 
-fn try_abort<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, F::Err>
+fn try_abort<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
-    F: Tx<Ctx>,
-    G: FnOnce(F::Item) -> Result<F::Item, F::Err>,
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Item) -> Result<Tx1::Item, Tx1::Err>,
 {
-    move |ctx| match f.run(ctx) {
-        Ok(t) => g(t),
+    move |ctx| match tx1.run(ctx) {
+        Ok(t) => f(t),
         Err(e) => Err(e),
     }
 }
