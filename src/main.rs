@@ -134,14 +134,14 @@ where
     }
 }
 
-fn recover<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, F::Err>
+fn recover<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
-    F: Tx<Ctx>,
-    G: FnOnce(F::Err) -> F::Item,
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Err) -> Tx1::Item,
 {
-    move |ctx| match f.run(ctx) {
+    move |ctx| match tx1.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => Ok(g(e)),
+        Err(e) => Ok(f(e)),
     }
 }
 
