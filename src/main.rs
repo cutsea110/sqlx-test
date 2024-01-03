@@ -94,19 +94,19 @@ where
     }
 }
 
-fn join4<Ctx, F, G, H, I>(
-    f: F,
-    g: G,
-    h: H,
-    i: I,
-) -> impl FnOnce(&mut Ctx) -> Result<(F::Item, G::Item, H::Item, I::Item), F::Err>
+fn join4<Ctx, Tx1, Tx2, Tx3, Tx4>(
+    tx1: Tx1,
+    tx2: Tx2,
+    tx3: Tx3,
+    tx4: Tx4,
+) -> impl FnOnce(&mut Ctx) -> Result<(Tx1::Item, Tx2::Item, Tx3::Item, Tx4::Item), Tx1::Err>
 where
-    F: Tx<Ctx>,
-    G: Tx<Ctx, Err = F::Err>,
-    H: Tx<Ctx, Err = F::Err>,
-    I: Tx<Ctx, Err = F::Err>,
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    Tx3: Tx<Ctx, Err = Tx1::Err>,
+    Tx4: Tx<Ctx, Err = Tx1::Err>,
 {
-    move |ctx| match (f.run(ctx), g.run(ctx), h.run(ctx), i.run(ctx)) {
+    move |ctx| match (tx1.run(ctx), tx2.run(ctx), tx3.run(ctx), tx4.run(ctx)) {
         (Ok(t), Ok(u), Ok(v), Ok(w)) => Ok((t, u, v, w)),
         (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => Err(e),
     }
