@@ -64,12 +64,15 @@ where
     }
 }
 
-fn join<Ctx, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<(F::Item, G::Item), F::Err>
+fn join<Ctx, Tx1, Tx2>(
+    tx1: Tx1,
+    tx2: Tx2,
+) -> impl FnOnce(&mut Ctx) -> Result<(Tx1::Item, Tx2::Item), Tx1::Err>
 where
-    F: Tx<Ctx>,
-    G: Tx<Ctx, Err = F::Err>,
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
 {
-    move |ctx| match (f.run(ctx), g.run(ctx)) {
+    move |ctx| match (tx1.run(ctx), tx2.run(ctx)) {
         (Ok(t), Ok(u)) => Ok((t, u)),
         (Err(e), _) | (_, Err(e)) => Err(e),
     }
