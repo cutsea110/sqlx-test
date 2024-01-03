@@ -52,15 +52,15 @@ where
     move |ctx| f(tx1.run(ctx)).run(ctx)
 }
 
-fn or_else<Ctx, F, G, B>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<B::Item, F::Err>
+fn or_else<Ctx, Tx1, Tx2, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx2::Item, Tx1::Err>
 where
-    F: Tx<Ctx>,
-    B: Tx<Ctx, Item = F::Item, Err = F::Err>,
-    G: FnOnce(F::Err) -> B,
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Item = Tx1::Item, Err = Tx1::Err>,
+    F: FnOnce(Tx1::Err) -> Tx2,
 {
-    move |ctx| match f.run(ctx) {
+    move |ctx| match tx1.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => g(e).run(ctx),
+        Err(e) => f(e).run(ctx),
     }
 }
 
