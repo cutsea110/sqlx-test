@@ -112,14 +112,14 @@ where
     }
 }
 
-fn map_err<Ctx, E, F, G>(f: F, g: G) -> impl FnOnce(&mut Ctx) -> Result<F::Item, E>
+fn map_err<Ctx, Tx1, F, E>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, E>
 where
-    F: Tx<Ctx>,
-    G: FnOnce(F::Err) -> E,
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Err) -> E,
 {
-    move |ctx| match f.run(ctx) {
+    move |ctx| match tx1.run(ctx) {
         Ok(t) => Ok(t),
-        Err(e) => Err(g(e)),
+        Err(e) => Err(f(e)),
     }
 }
 
