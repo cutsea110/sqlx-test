@@ -134,7 +134,7 @@ where
     }
 }
 
-fn recovery<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
+fn recover<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
     F: FnOnce(Tx1::Err) -> Tx1::Item,
@@ -145,7 +145,7 @@ where
     }
 }
 
-fn try_recovery<Ctx, Tx1, F, E>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, E>
+fn try_recover<Ctx, Tx1, F, E>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, E>
 where
     Tx1: Tx<Ctx>,
     F: FnOnce(Tx1::Err) -> Result<Tx1::Item, E>,
