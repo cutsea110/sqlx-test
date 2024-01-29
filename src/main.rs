@@ -6,6 +6,12 @@ pub trait Tx<Ctx> {
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err>;
 }
 
+/*
+ * TODO: 現時点では FnOnce(&mut Ctx) -> Result<T, E> という型のクロージャのみ Tx として扱える
+ * Tx をライブラリ化するにあたっては、以下の各ライブラリ関数に対して各々に対応する型を定義し、Tx トレイトを実装する
+ * これによりライブラリ利用者が Tx を自由に設計できるようになる
+ */
+
 impl<Ctx, T, E, F> Tx<Ctx> for F
 where
     F: FnOnce(&mut Ctx) -> Result<T, E>,
