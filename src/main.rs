@@ -66,6 +66,27 @@ where
     }
 }
 
+struct AndThen<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, Tx2, F> Tx<Ctx> for AndThen<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    F: FnOnce(Tx1::Item) -> Tx2,
+{
+    type Item = Tx2::Item;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(x) => (self.f)(x).run(ctx),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 fn then<Ctx, Tx1, Tx2, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx2::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
