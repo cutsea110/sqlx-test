@@ -237,6 +237,35 @@ where
     }
 }
 
+struct Join4<Tx1, Tx2, Tx3, Tx4> {
+    tx1: Tx1,
+    tx2: Tx2,
+    tx3: Tx3,
+    tx4: Tx4,
+}
+impl<Ctx, Tx1, Tx2, Tx3, Tx4> Tx<Ctx> for Join4<Tx1, Tx2, Tx3, Tx4>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    Tx3: Tx<Ctx, Err = Tx1::Err>,
+    Tx4: Tx<Ctx, Err = Tx1::Err>,
+{
+    type Item = (Tx1::Item, Tx2::Item, Tx3::Item, Tx4::Item);
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match (
+            self.tx1.run(ctx),
+            self.tx2.run(ctx),
+            self.tx3.run(ctx),
+            self.tx4.run(ctx),
+        ) {
+            (Ok(t), Ok(u), Ok(v), Ok(w)) => Ok((t, u, v, w)),
+            (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => Err(e),
+        }
+    }
+}
+
 fn map_err<Ctx, Tx1, F, E>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, E>
 where
     Tx1: Tx<Ctx>,
@@ -245,6 +274,26 @@ where
     move |ctx| match tx1.run(ctx) {
         Ok(t) => Ok(t),
         Err(e) => Err(f(e)),
+    }
+}
+
+struct MapErr<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, F, E> Tx<Ctx> for MapErr<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Err) -> E,
+{
+    type Item = Tx1::Item;
+    type Err = E;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(t) => Ok(t),
+            Err(e) => Err((self.f)(e)),
+        }
     }
 }
 
