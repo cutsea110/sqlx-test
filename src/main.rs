@@ -96,6 +96,24 @@ where
     move |ctx| f(tx1.run(ctx)).run(ctx)
 }
 
+struct Then<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, Tx2, F> Tx<Ctx> for Then<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    F: FnOnce(Result<Tx1::Item, Tx1::Err>) -> Tx2,
+{
+    type Item = Tx2::Item;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        (self.f)(self.tx1.run(ctx)).run(ctx)
+    }
+}
+
 fn or_else<Ctx, Tx1, Tx2, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx2::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
