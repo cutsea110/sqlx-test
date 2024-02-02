@@ -197,6 +197,28 @@ where
     }
 }
 
+struct Join3<Tx1, Tx2, Tx3> {
+    tx1: Tx1,
+    tx2: Tx2,
+    tx3: Tx3,
+}
+impl<Ctx, Tx1, Tx2, Tx3> Tx<Ctx> for Join3<Tx1, Tx2, Tx3>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+    Tx3: Tx<Ctx, Err = Tx1::Err>,
+{
+    type Item = (Tx1::Item, Tx2::Item, Tx3::Item);
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match (self.tx1.run(ctx), self.tx2.run(ctx), self.tx3.run(ctx)) {
+            (Ok(t), Ok(u), Ok(v)) => Ok((t, u, v)),
+            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => Err(e),
+        }
+    }
+}
+
 fn join4<Ctx, Tx1, Tx2, Tx3, Tx4>(
     tx1: Tx1,
     tx2: Tx2,
