@@ -161,6 +161,26 @@ where
     }
 }
 
+struct Join<Tx1, Tx2> {
+    tx1: Tx1,
+    tx2: Tx2,
+}
+impl<Ctx, Tx1, Tx2> Tx<Ctx> for Join<Tx1, Tx2>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Err = Tx1::Err>,
+{
+    type Item = (Tx1::Item, Tx2::Item);
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match (self.tx1.run(ctx), self.tx2.run(ctx)) {
+            (Ok(t), Ok(u)) => Ok((t, u)),
+            (Err(e), _) | (_, Err(e)) => Err(e),
+        }
+    }
+}
+
 fn join3<Ctx, Tx1, Tx2, Tx3>(
     tx1: Tx1,
     tx2: Tx2,
