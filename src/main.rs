@@ -126,6 +126,27 @@ where
     }
 }
 
+struct OrElse<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, Tx2, F> Tx<Ctx> for OrElse<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    Tx2: Tx<Ctx, Item = Tx1::Item, Err = Tx1::Err>,
+    F: FnOnce(Tx1::Err) -> Tx2,
+{
+    type Item = Tx1::Item;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(t) => Ok(t),
+            Err(e) => (self.f)(e).run(ctx),
+        }
+    }
+}
+
 fn join<Ctx, Tx1, Tx2>(
     tx1: Tx1,
     tx2: Tx2,
