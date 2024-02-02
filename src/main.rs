@@ -34,6 +34,23 @@ where
     }
 }
 
+struct Map<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, T, F> Tx<Ctx> for Map<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Item) -> T,
+{
+    type Item = T;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        self.tx1.run(ctx).map(self.f)
+    }
+}
+
 fn and_then<Ctx, Tx1, Tx2, F>(
     tx1: Tx1,
     f: F,
