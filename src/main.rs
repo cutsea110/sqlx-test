@@ -3,7 +3,31 @@ use sqlx::query;
 pub trait Tx<Ctx> {
     type Item;
     type Err;
+
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err>;
+    fn map<F, T>(self, f: F) -> Map<Self, F>
+    where
+        F: FnOnce(Self::Item) -> T,
+        Self: Sized,
+    {
+        Map { tx1: self, f }
+    }
+    fn and_then<Tx2, F>(self, f: F) -> AndThen<Self, F>
+    where
+        Tx2: Tx<Ctx, Err = Self::Err>,
+        F: FnOnce(Self::Item) -> Tx2,
+        Self: Sized,
+    {
+        AndThen { tx1: self, f }
+    }
+    fn then<Tx2, F>(self, f: F) -> Then<Self, F>
+    where
+        Tx2: Tx<Ctx, Err = Self::Err>,
+        F: FnOnce(Result<Self::Item, Self::Err>) -> Tx2,
+        Self: Sized,
+    {
+        Then { tx1: self, f }
+    }
 }
 
 /*
