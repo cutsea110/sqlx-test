@@ -401,6 +401,26 @@ where
     }
 }
 
+struct Abort<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, F> Tx<Ctx> for Abort<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Item) -> Tx1::Err,
+{
+    type Item = Tx1::Item;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(t) => Err((self.f)(t)),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 fn try_abort<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
