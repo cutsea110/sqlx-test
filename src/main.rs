@@ -47,7 +47,10 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        self.tx1.run(ctx).map(self.f)
+        match self.tx1.run(ctx) {
+            Ok(x) => Ok((self.f)(x)),
+            Err(e) => Err(e),
+        }
     }
 }
 
