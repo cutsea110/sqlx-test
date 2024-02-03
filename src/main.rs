@@ -370,6 +370,26 @@ where
     }
 }
 
+struct TryRecover<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, F, E> Tx<Ctx> for TryRecover<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Err) -> Result<Tx1::Item, E>,
+{
+    type Item = Tx1::Item;
+    type Err = E;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(t) => Ok(t),
+            Err(e) => (self.f)(e),
+        }
+    }
+}
+
 fn abort<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
