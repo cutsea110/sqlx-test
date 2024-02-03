@@ -308,6 +308,26 @@ where
     }
 }
 
+struct TryMap<Tx1, F> {
+    tx1: Tx1,
+    f: F,
+}
+impl<Ctx, Tx1, F, T> Tx<Ctx> for TryMap<Tx1, F>
+where
+    Tx1: Tx<Ctx>,
+    F: FnOnce(Tx1::Item) -> Result<T, Tx1::Err>,
+{
+    type Item = T;
+    type Err = Tx1::Err;
+
+    fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
+        match self.tx1.run(ctx) {
+            Ok(t) => (self.f)(t),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 fn recover<Ctx, Tx1, F>(tx1: Tx1, f: F) -> impl FnOnce(&mut Ctx) -> Result<Tx1::Item, Tx1::Err>
 where
     Tx1: Tx<Ctx>,
