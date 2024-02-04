@@ -28,6 +28,89 @@ pub trait Tx<Ctx> {
     {
         Then { tx1: self, f }
     }
+    fn or_else<Tx2, F>(self, f: F) -> OrElse<Self, F>
+    where
+        Tx2: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        F: FnOnce(Self::Err) -> Tx2,
+        Self: Sized,
+    {
+        OrElse { tx1: self, f }
+    }
+    fn join<Tx2>(self, tx2: Tx2) -> Join<Self, Tx2>
+    where
+        Tx2: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Self: Sized,
+    {
+        Join { tx1: self, tx2 }
+    }
+    fn join3<Tx2, Tx3>(self, tx2: Tx2, tx3: Tx3) -> Join3<Self, Tx2, Tx3>
+    where
+        Tx2: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Tx3: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Self: Sized,
+    {
+        Join3 {
+            tx1: self,
+            tx2,
+            tx3,
+        }
+    }
+    fn join4<Tx2, Tx3, Tx4>(self, tx2: Tx2, tx3: Tx3, tx4: Tx4) -> Join4<Self, Tx2, Tx3, Tx4>
+    where
+        Tx2: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Tx3: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Tx4: Tx<Ctx, Item = Self::Item, Err = Self::Err>,
+        Self: Sized,
+    {
+        Join4 {
+            tx1: self,
+            tx2,
+            tx3,
+            tx4,
+        }
+    }
+    fn map_err<F, E>(self, f: F) -> MapErr<Self, F>
+    where
+        F: FnOnce(Self::Err) -> E,
+        Self: Sized,
+    {
+        MapErr { tx1: self, f }
+    }
+    fn try_map<F, T, E>(self, f: F) -> TryMap<Self, F>
+    where
+        F: FnOnce(Self::Item) -> Result<T, E>,
+        Self: Sized,
+    {
+        TryMap { tx1: self, f }
+    }
+    fn recover<F, T, E>(self, f: F) -> Recover<Self, F>
+    where
+        F: FnOnce(Self::Err) -> Result<T, E>,
+        Self: Sized,
+    {
+        Recover { tx1: self, f }
+    }
+    fn try_recover<F, T, E>(self, f: F) -> TryRecover<Self, F>
+    where
+        F: FnOnce(Self::Err) -> Result<T, E>,
+        Self: Sized,
+    {
+        TryRecover { tx1: self, f }
+    }
+    fn abort<F, T>(self, f: F) -> Abort<Self, F>
+    where
+        F: FnOnce(Self::Err) -> T,
+        Self: Sized,
+    {
+        Abort { tx1: self, f }
+    }
+    fn try_abort<F, T, E>(self, f: F) -> TryAbort<Self, F>
+    where
+        F: FnOnce(Self::Err) -> Result<T, E>,
+        Self: Sized,
+    {
+        TryAbort { tx1: self, f }
+    }
 }
 
 /*
