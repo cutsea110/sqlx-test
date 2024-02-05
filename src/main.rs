@@ -154,10 +154,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(x) => Ok((self.f)(x)),
-            Err(e) => Err(e),
-        }
+        map(self.tx1, self.f)(ctx)
     }
 }
 
@@ -190,10 +187,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(x) => (self.f)(x).run(ctx),
-            Err(e) => Err(e),
-        }
+        and_then(self.tx1, self.f)(ctx)
     }
 }
 
@@ -220,7 +214,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        (self.f)(self.tx1.run(ctx)).run(ctx)
+        then(self.tx1, self.f)(ctx)
     }
 }
 
@@ -250,10 +244,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => Ok(t),
-            Err(e) => (self.f)(e).run(ctx),
-        }
+        or_else(self.tx1, self.f)(ctx)
     }
 }
 
@@ -284,10 +275,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match (self.tx1.run(ctx), self.tx2.run(ctx)) {
-            (Ok(t), Ok(u)) => Ok((t, u)),
-            (Err(e), _) | (_, Err(e)) => Err(e),
-        }
+        join(self.tx1, self.tx2)(ctx)
     }
 }
 
@@ -322,10 +310,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match (self.tx1.run(ctx), self.tx2.run(ctx), self.tx3.run(ctx)) {
-            (Ok(t), Ok(u), Ok(v)) => Ok((t, u, v)),
-            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => Err(e),
-        }
+        join3(self.tx1, self.tx2, self.tx3)(ctx)
     }
 }
 
@@ -364,15 +349,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match (
-            self.tx1.run(ctx),
-            self.tx2.run(ctx),
-            self.tx3.run(ctx),
-            self.tx4.run(ctx),
-        ) {
-            (Ok(t), Ok(u), Ok(v), Ok(w)) => Ok((t, u, v, w)),
-            (Err(e), _, _, _) | (_, Err(e), _, _) | (_, _, Err(e), _) | (_, _, _, Err(e)) => Err(e),
-        }
+        join4(self.tx1, self.tx2, self.tx3, self.tx4)(ctx)
     }
 }
 
@@ -400,10 +377,7 @@ where
     type Err = E;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => Ok(t),
-            Err(e) => Err((self.f)(e)),
-        }
+        map_err(self.tx1, self.f)(ctx)
     }
 }
 
@@ -431,10 +405,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => (self.f)(t),
-            Err(e) => Err(e),
-        }
+        try_map(self.tx1, self.f)(ctx)
     }
 }
 
@@ -462,10 +433,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => Ok(t),
-            Err(e) => Ok((self.f)(e)),
-        }
+        recover(self.tx1, self.f)(ctx)
     }
 }
 
@@ -493,10 +461,7 @@ where
     type Err = E;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => Ok(t),
-            Err(e) => (self.f)(e),
-        }
+        try_recover(self.tx1, self.f)(ctx)
     }
 }
 
@@ -524,10 +489,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => Err((self.f)(t)),
-            Err(e) => Err(e),
-        }
+        abort(self.tx1, self.f)(ctx)
     }
 }
 
@@ -555,10 +517,7 @@ where
     type Err = Tx1::Err;
 
     fn run(self, ctx: &mut Ctx) -> Result<Self::Item, Self::Err> {
-        match self.tx1.run(ctx) {
-            Ok(t) => (self.f)(t),
-            Err(e) => Err(e),
-        }
+        try_abort(self.tx1, self.f)(ctx)
     }
 }
 
