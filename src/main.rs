@@ -141,7 +141,7 @@ where
     }
 }
 
-struct Map<Tx1, F> {
+pub struct Map<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -176,7 +176,7 @@ where
     }
 }
 
-struct AndThen<Tx1, F> {
+pub struct AndThen<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -206,7 +206,7 @@ where
     move |ctx| f(tx1.run(ctx)).run(ctx)
 }
 
-struct Then<Tx1, F> {
+pub struct Then<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -236,7 +236,7 @@ where
     }
 }
 
-struct OrElse<Tx1, F> {
+pub struct OrElse<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -271,7 +271,7 @@ where
     }
 }
 
-struct Join<Tx1, Tx2> {
+pub struct Join<Tx1, Tx2> {
     tx1: Tx1,
     tx2: Tx2,
 }
@@ -307,7 +307,7 @@ where
     }
 }
 
-struct Join3<Tx1, Tx2, Tx3> {
+pub struct Join3<Tx1, Tx2, Tx3> {
     tx1: Tx1,
     tx2: Tx2,
     tx3: Tx3,
@@ -347,7 +347,7 @@ where
     }
 }
 
-struct Join4<Tx1, Tx2, Tx3, Tx4> {
+pub struct Join4<Tx1, Tx2, Tx3, Tx4> {
     tx1: Tx1,
     tx2: Tx2,
     tx3: Tx3,
@@ -387,7 +387,7 @@ where
     }
 }
 
-struct MapErr<Tx1, F> {
+pub struct MapErr<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -418,7 +418,7 @@ where
     }
 }
 
-struct TryMap<Tx1, F> {
+pub struct TryMap<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -449,7 +449,7 @@ where
     }
 }
 
-struct Recover<Tx1, F> {
+pub struct Recover<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -480,7 +480,7 @@ where
     }
 }
 
-struct TryRecover<Tx1, F> {
+pub struct TryRecover<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -511,7 +511,7 @@ where
     }
 }
 
-struct Abort<Tx1, F> {
+pub struct Abort<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
@@ -542,7 +542,7 @@ where
     }
 }
 
-struct TryAbort<Tx1, F> {
+pub struct TryAbort<Tx1, F> {
     tx1: Tx1,
     f: F,
 }
