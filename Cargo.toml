@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 sqlx = { varsion = "0.71", features = ["postgres", "runtime-tokio-native-tls"] }
-tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
